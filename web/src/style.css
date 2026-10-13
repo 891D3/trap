@@ -36,7 +36,7 @@ input {
 
 ::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: 0;
+  border-radius: var(--radius-card);
 }
 
 /* ---------- 三栏布局 ---------- */
@@ -105,9 +105,7 @@ input {
 }
 
 .side-rail.is-collapsed:not(:hover) .side-user {
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
+  justify-content: center;
 }
 
 .side-user {
@@ -123,24 +121,14 @@ input {
   align-items: baseline;
   gap: 1px;
   min-width: 0;
-}
-
-.side-toggle {
-  margin-left: auto;
-  flex: none;
-  color: var(--text-3);
-  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
-}
-
-.side-toggle:hover {
-  color: var(--text);
-  background: var(--border-soft);
+  flex: 1;
 }
 
 .avatar {
   flex: none;
   width: 44px;
   height: 44px;
+  border-radius: 50%;
   border: 2px solid var(--primary);
   background: var(--primary-soft);
   display: grid;
@@ -335,7 +323,7 @@ input {
   align-items: center;
   gap: 5px;
   padding: 3px 10px;
-  border-radius: 0;
+  border-radius: var(--radius-card);
   background: var(--surface);
   border: 1px solid var(--border);
   font-size: 13px;
@@ -368,7 +356,7 @@ input {
   place-items: center;
   width: 22px;
   height: 22px;
-  border-radius: 0;
+  border-radius: var(--radius-card);
   color: var(--text-3);
   transition: all var(--dur-fast) var(--ease);
 }
@@ -427,6 +415,7 @@ input {
   flex: none;
   width: 20px;
   height: 20px;
+  border-radius: var(--radius-card);
   border: 1.5px solid var(--text-3);
   display: grid;
   place-items: center;
@@ -477,12 +466,12 @@ input {
   padding: 3px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 0;
+  border-radius: var(--radius-card);
 }
 
 .filter-tab {
   padding: 4px 12px;
-  border-radius: 0;
+  border-radius: var(--radius-card);
   font-size: 13px;
   color: var(--text-2);
 }
@@ -542,6 +531,7 @@ input {
 
 .note-badge {
   padding: 1px 8px;
+  border-radius: var(--radius-card);
   font-size: 11px;
   background: var(--border-soft);
   color: var(--text-2);
@@ -576,6 +566,7 @@ input {
   flex: none;
   width: 38px;
   height: 38px;
+  border-radius: var(--radius-card);
   display: grid;
   place-items: center;
   font-weight: 700;
@@ -658,7 +649,7 @@ input {
 .field input {
   padding: 9px 12px;
   border: 1px solid var(--border);
-  border-radius: 0;
+  border-radius: var(--radius-card);
   background: var(--bg);
   outline: none;
 }
@@ -708,12 +699,12 @@ input {
   gap: 4px;
   padding: 3px;
   background: var(--bg);
-  border-radius: 0;
+  border-radius: var(--radius-card);
 }
 
 .seg-btn {
   padding: 4px 12px;
-  border-radius: 0;
+  border-radius: var(--radius-card);
   font-size: 13px;
   color: var(--text-2);
 }

@@ -17,9 +17,9 @@
   --danger: #d64545;
   --danger-soft: rgba(214, 69, 69, 0.1);
 
-  --radius-side: 0px;
-  --radius-card: 0px;
-  --radius-item: 0px;
+  --radius-side: 14px;
+  --radius-card: 14px;
+  --radius-item: 14px;
 
   --shadow-side: 0 10px 32px rgba(17, 20, 26, 0.1), 0 2px 8px rgba(17, 20, 26, 0.05);
   --shadow-card: 0 1px 3px rgba(17, 20, 26, 0.04), 0 4px 14px rgba(17, 20, 26, 0.04);

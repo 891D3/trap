@@ -104,6 +104,31 @@ export const IconPulse = ({ size = 18 }: IconProps) =>
     </>
   ));
 
+export const IconPanelLeftClose = ({ size = 18 }: IconProps) =>
+  base(size, (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="M9.5 4v16" />
+      <path d="m16.5 10-2.5 2 2.5 2" />
+    </>
+  ));
+
+export const IconPanelLeftOpen = ({ size = 18 }: IconProps) =>
+  base(size, (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="3" />
+      <path d="M9.5 4v16" />
+      <path d="m12 10 2.5 2-2.5 2" />
+    </>
+  ));
+
+export const IconDashboard = ({ size = 18 }: IconProps) =>
+  base(size, (
+    <>
+      <path d="M5 20V10M12 20V4M19 20v-6" />
+    </>
+  ));
+
 export const IconX = ({ size = 16 }: IconProps) =>
   base(size, (
     <>

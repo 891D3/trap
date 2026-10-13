@@ -38,7 +38,7 @@ export type QuickLink = {
 
 export type ThemeSetting = 'system' | 'light' | 'dark';
 
-export type ViewId = 'todo' | 'note' | 'link' | 'settings';
+export type ViewId = 'dashboard' | 'todo' | 'note' | 'link' | 'settings';
 
 /* ---------- mock 数据 ---------- */
 

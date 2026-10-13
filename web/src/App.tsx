@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { IconDashboard } from './components/icons';
 import { Auxiliary } from './panels/Auxiliary';
 import { MainArea } from './panels/MainArea';
 import { Sidebar } from './panels/Sidebar';
@@ -9,6 +10,7 @@ import { TodoView } from './panels/views/TodoView';
 import { useStore, useTheme, type ViewId } from './state/app-store';
 
 const VIEW_META: Record<ViewId, { title: string; desc: string }> = {
+  dashboard: { title: '看板', desc: '效率与成长轨迹（M2 开放）' },
   todo: { title: '待办事项', desc: '随手记、一键完成' },
   note: { title: '信息记录', desc: '灵感与重要事项，markdown 沉淀' },
   link: { title: '快捷入口', desc: '常用工具与网站，一键直达' },
@@ -48,10 +50,17 @@ export function App() {
       <MainArea
         meta={VIEW_META[view] ?? VIEW_META.todo}
         doneToday={doneToday}
+        showStat={view === 'todo'}
         showAuxToggle={narrow}
         auxOpen={auxOpen}
         onToggleAux={() => setAuxOpen((o) => !o)}
       >
+        {view === 'dashboard' && (
+          <div className="aux-placeholder" style={{ marginTop: 24 }}>
+            <IconDashboard />
+            <span>看板 · M2 开放</span>
+          </div>
+        )}
         {view === 'todo' && <TodoView />}
         {view === 'note' && <NoteView />}
         {view === 'link' && <LinkView />}

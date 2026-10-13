@@ -1,10 +1,11 @@
 import type { ViewId } from '../state/app-store';
 import type { ReactNode } from 'react';
 import {
-  IconCollapse,
-  IconExpand,
+  IconDashboard,
   IconLink,
   IconNote,
+  IconPanelLeftClose,
+  IconPanelLeftOpen,
   IconSettings,
   IconTodo,
 } from '../components/icons';
@@ -18,6 +19,7 @@ type SidebarProps = {
 };
 
 const NAV_ITEMS: { id: ViewId; label: string; icon: ReactNode }[] = [
+  { id: 'dashboard', label: '看板', icon: <IconDashboard /> },
   { id: 'todo', label: '待办事项', icon: <IconTodo /> },
   { id: 'note', label: '信息记录', icon: <IconNote /> },
   { id: 'link', label: '快捷入口', icon: <IconLink /> },
@@ -35,14 +37,6 @@ export function Sidebar({ view, collapsed, onSelectView, onToggleCollapsed }: Si
             <span className="side-user-name">{user.name}</span>
             <span className="side-user-sub">的工作台</span>
           </div>
-          <button
-            className="btn-icon side-toggle"
-            aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
-            title={collapsed ? '展开侧栏' : '收起侧栏'}
-            onClick={onToggleCollapsed}
-          >
-            {collapsed ? <IconExpand /> : <IconCollapse />}
-          </button>
         </div>
 
         <nav className="side-nav">
@@ -77,6 +71,15 @@ export function Sidebar({ view, collapsed, onSelectView, onToggleCollapsed }: Si
           >
             <IconSettings />
             <span className="side-label">设置</span>
+          </button>
+          <button
+            className="side-item"
+            onClick={onToggleCollapsed}
+            title={collapsed ? '展开侧栏' : '收起侧栏'}
+            aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
+          >
+            {collapsed ? <IconPanelLeftOpen /> : <IconPanelLeftClose />}
+            <span className="side-label">{collapsed ? '展开侧栏' : '收起侧栏'}</span>
           </button>
         </div>
       </aside>
