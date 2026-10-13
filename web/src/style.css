@@ -36,7 +36,7 @@ input {
 
 ::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: 4px;
+  border-radius: 0;
 }
 
 /* ---------- 三栏布局 ---------- */
@@ -85,13 +85,29 @@ input {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: clip;
-  opacity: 1;
   transition: opacity var(--dur-fast) var(--ease) var(--label-delay);
 }
 
-.is-collapsed .side-label {
+/* 收起且未悬停：文字零宽隐藏，图标居中；悬停展开时文字延迟 80ms 淡入 */
+.side-rail.is-collapsed:not(:hover) .side-label {
   opacity: 0;
-  transition-delay: 0s;
+  width: 0;
+  min-width: 0;
+  flex: none;
+  transition: none;
+}
+
+.side-rail.is-collapsed:not(:hover) .side-item {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.side-rail.is-collapsed:not(:hover) .side-user {
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
 }
 
 .side-user {
@@ -113,7 +129,7 @@ input {
   margin-left: auto;
   flex: none;
   color: var(--text-3);
-  transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+  transition: color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
 }
 
 .side-toggle:hover {
@@ -121,16 +137,10 @@ input {
   background: var(--border-soft);
 }
 
-.side-rail.is-collapsed .side-toggle {
-  opacity: 0;
-  pointer-events: none;
-}
-
 .avatar {
   flex: none;
   width: 44px;
   height: 44px;
-  border-radius: 50%;
   border: 2px solid var(--primary);
   background: var(--primary-soft);
   display: grid;
@@ -324,8 +334,8 @@ input {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 4px 10px;
-  border-radius: var(--radius-item);
+  padding: 3px 10px;
+  border-radius: 0;
   background: var(--surface);
   border: 1px solid var(--border);
   font-size: 13px;
@@ -356,9 +366,9 @@ input {
 .btn-icon {
   display: inline-grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 7px;
+  width: 22px;
+  height: 22px;
+  border-radius: 0;
   color: var(--text-3);
   transition: all var(--dur-fast) var(--ease);
 }
@@ -417,7 +427,6 @@ input {
   flex: none;
   width: 20px;
   height: 20px;
-  border-radius: 6px;
   border: 1.5px solid var(--text-3);
   display: grid;
   place-items: center;
@@ -468,12 +477,12 @@ input {
   padding: 3px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius-item);
+  border-radius: 0;
 }
 
 .filter-tab {
   padding: 4px 12px;
-  border-radius: 7px;
+  border-radius: 0;
   font-size: 13px;
   color: var(--text-2);
 }
@@ -533,7 +542,6 @@ input {
 
 .note-badge {
   padding: 1px 8px;
-  border-radius: 999px;
   font-size: 11px;
   background: var(--border-soft);
   color: var(--text-2);
@@ -568,7 +576,6 @@ input {
   flex: none;
   width: 38px;
   height: 38px;
-  border-radius: 10px;
   display: grid;
   place-items: center;
   font-weight: 700;
@@ -651,7 +658,7 @@ input {
 .field input {
   padding: 9px 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-item);
+  border-radius: 0;
   background: var(--bg);
   outline: none;
 }
@@ -701,12 +708,12 @@ input {
   gap: 4px;
   padding: 3px;
   background: var(--bg);
-  border-radius: var(--radius-item);
+  border-radius: 0;
 }
 
 .seg-btn {
-  padding: 5px 14px;
-  border-radius: 8px;
+  padding: 4px 12px;
+  border-radius: 0;
   font-size: 13px;
   color: var(--text-2);
 }
