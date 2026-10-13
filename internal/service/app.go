@@ -2,10 +2,151 @@
 //
 // 约定（PRD §2/§5）：前端不直接访问 SQLite，所有数据操作经这些服务的
 // 方法完成；mygo generate 据此生成 TS 客户端，两端类型同步演进。
+// 本文件 T2 只包含应用级设置能力；Todo/Note/QuickLink 服务随 T4–T6 增加。
 package service
 
-// AppService 提供应用级基础能力（T1 占位，T2/T3 充实设置与主题能力）。
-type AppService struct{}
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/891D3/trap/internal/store"
+	"github.com/egoist/mygo"
+)
+
+// Settings 是设置页可见的应用级设置（map 到 settings 表的业务键）。
+type Settings struct {
+	Name       string `json:"name,omitempty"`       // user.name
+	AvatarPath string `json:"avatarPath,omitempty"` // user.avatar_path
+	Theme      string `json:"theme,omitempty"`      // app.theme：system/light/dark
+	ExportDir  string `json:"exportDir,omitempty"`  // app.export_dir
+	DataDir    string `json:"dataDir,omitempty"`    // 数据目录（只读展示）
+}
+
+// SettingsChanged 是设置变化事件（PRD §2：事件命名 <域>.<动作>）。
+// Go 侧在每次设置成功写入后 Broadcast；前端据此刷新侧栏姓名等展示。
+var SettingsChanged = mygo.NewEvent[Settings]("settings.changed")
+
+// 主题的合法取值（M0 默认 system）。
+const (
+	ThemeSystem = "system"
+	ThemeLight  = "light"
+	ThemeDark   = "dark"
+)
+
+// AppService 提供应用级基础能力（设置读写、连通性自检）。
+//
+// 生命周期：main 在 Bind 时注册零值；数据库在 App.WhenReady 中打开后
+// 经包级 AttachStore 注入。注入函数不是 AppService 的方法，因此不会被
+// mygo 暴露给前端；服务方法仍显式判空，避免对空指针的隐式依赖。
+type AppService struct {
+	store   *store.DB
+	dataDir string // 数据目录（userData），供 GetSettings 只读展示
+}
 
 // Ping 连通性自检：验证 mygo typed IPC 端到端链路。
-func (AppService) Ping() string { return "pong" }
+func (s *AppService) Ping() string { return "pong" }
+
+// AttachStore 注入数据层；由 main 在 WhenReady 打开数据库后调用。
+// 这是包级函数而非 AppService 方法，避免被 mygo 自动绑定为 IPC 接口。
+func AttachStore(s *AppService, st *store.DB, dataDir string) {
+	s.setStore(st, dataDir)
+}
+
+// setStore 是真正的内部注入方法，保持非导出以避免进入 typed IPC 方法集。
+func (s *AppService) setStore(st *store.DB, dataDir string) {
+	s.store = st
+	s.dataDir = dataDir
+}
+
+// ready 校验数据层已注入。
+func (s *AppService) ready() (*store.DB, error) {
+	if s.store == nil {
+		return nil, errors.New("service: 数据层尚未初始化（应用尚未完成启动）")
+	}
+	return s.store, nil
+}
+
+// GetSettings 读取全部设置并映射为 Settings。
+func (s *AppService) GetSettings(ctx context.Context) (Settings, error) {
+	st, err := s.ready()
+	if err != nil {
+		return Settings{}, err
+	}
+	kv, err := st.GetSettings(ctx)
+	if err != nil {
+		return Settings{}, err
+	}
+	return settingsFrom(kv, s.dataDir), nil
+}
+
+// UpdateProfile 更新姓名与头像路径（头像文件复制等归后续任务，T2 只存路径）。
+func (s *AppService) UpdateProfile(ctx context.Context, name, avatarPath string) (Settings, error) {
+	st, err := s.ready()
+	if err != nil {
+		return Settings{}, err
+	}
+	if name == "" {
+		return Settings{}, errors.New("姓名不能为空")
+	}
+	err = st.SetSettings(ctx, map[string]string{
+		string(store.KeyUserName):   name,
+		string(store.KeyUserAvatar): avatarPath,
+	})
+	if err != nil {
+		return Settings{}, err
+	}
+	out, err := s.GetSettings(ctx)
+	if err != nil {
+		return Settings{}, err
+	}
+	// 事件广播失败不阻断业务（数据已落库），仅显式忽略（AGENTS.md §4.1 降级策略）。
+	_ = SettingsChanged.Broadcast(out)
+	return out, nil
+}
+
+// SetTheme 设置主题；主题必须是 system/light/dark 之一。
+func (s *AppService) SetTheme(ctx context.Context, theme string) error {
+	switch theme {
+	case ThemeSystem, ThemeLight, ThemeDark:
+	default:
+		return fmt.Errorf("不支持的主题 %q（应为 system/light/dark）", theme)
+	}
+	st, err := s.ready()
+	if err != nil {
+		return err
+	}
+	if err := st.SetSettings(ctx, map[string]string{string(store.KeyAppTheme): theme}); err != nil {
+		return err
+	}
+	if out, err := s.GetSettings(ctx); err == nil {
+		_ = SettingsChanged.Broadcast(out)
+	}
+	return nil
+}
+
+// SetExportDir 设置信息记录导出目录（T5 的导出功能使用该目录）。
+func (s *AppService) SetExportDir(ctx context.Context, dir string) error {
+	st, err := s.ready()
+	if err != nil {
+		return err
+	}
+	if err := st.SetSettings(ctx, map[string]string{string(store.KeyAppExportDir): dir}); err != nil {
+		return err
+	}
+	if out, err := s.GetSettings(ctx); err == nil {
+		_ = SettingsChanged.Broadcast(out)
+	}
+	return nil
+}
+
+// settingsFrom 把 settings 表的键值映射为 Settings。
+func settingsFrom(kv map[string]string, dataDir string) Settings {
+	return Settings{
+		Name:       kv[string(store.KeyUserName)],
+		AvatarPath: kv[string(store.KeyUserAvatar)],
+		Theme:      kv[string(store.KeyAppTheme)],
+		ExportDir:  kv[string(store.KeyAppExportDir)],
+		DataDir:    dataDir,
+	}
+}

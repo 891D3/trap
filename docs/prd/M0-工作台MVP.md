@@ -227,6 +227,11 @@ func (AppService) OpenDataDir(ctx) error
 
 > 执行顺序（用户确认，2026-10-13，壳优先）：T1 → T3.0 → T3（空壳界面先给用户过目）→ T2 → T4–T6 → T7。每个任务一个 feature 分支；T5 的 Milkdown 集成冒烟在 T5 开始当天先做（评估风险项 3）。
 
+### 执行状态（随开发更新）
+
+- 2026-10-13：T1 完成；T3.0 完成；T3 壳完成、样式重构完成并提交（e8e6bb6，用户目检通过）。
+- 2026-10-13：T2 数据层完成（分支 `feature/m0-data-layer`）：迁移机制 + 四表 + `internal/store` + AppService 设置读写 + Go 单测全绿；用户已确认接受迁移 SQL 位于 `internal/store/migrations/`（go:embed 无法引包外目录）。待 T4–T6 的服务层与前端接入。
+
 ## 9. 脚手架与目录约定（拟定）
 
 `mygo-cli init` 生成结构基础上对齐 AGENTS.md §1.3 精神（Trap 业务即 mygo 应用本体，engine/ 不再单列 Go module）：
