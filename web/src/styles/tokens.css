@@ -28,9 +28,9 @@
   /* 尺寸 */
   --side-w: 240px;
   --side-w-collapsed: 72px;
-  --side-margin: 16px;
-  --main-pad: 32px;
-  --gap-block: 24px;
+  --side-margin: 12px;
+  --main-pad: 12px;
+  --gap-block: 16px;
 
   /* 动效：ease-out；宽度先行，文字延迟 80ms 淡入；微动效 150–200ms */
   --dur-fast: 0.15s;
