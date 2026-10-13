@@ -321,8 +321,10 @@ input {
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
-  padding: 1px 10px;
+  min-height: 26px;
+  padding: 1px 12px;
   border-radius: var(--radius-card);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -344,6 +346,13 @@ input {
 
 .btn.is-primary:hover {
   opacity: 0.92;
+}
+
+.btn.is-primary:disabled {
+  opacity: 1;
+  background: var(--primary-soft);
+  border-color: transparent;
+  color: var(--primary);
 }
 
 .btn:disabled {
@@ -369,7 +378,22 @@ input {
 /* ---------- 待办 ---------- */
 .todo-add-row {
   display: flex;
+  align-items: stretch;
   gap: 8px;
+}
+
+/* 行内主色按钮与输入框等高，水平内边距维持紧凑 */
+.todo-add-row .btn {
+  padding-top: 0;
+  padding-bottom: 0;
+  min-height: 0;
+}
+
+.todo-add-row .btn.is-primary:disabled {
+  opacity: 1;
+  background: var(--primary-soft);
+  border-color: transparent;
+  color: var(--primary);
 }
 
 .todo-input {
