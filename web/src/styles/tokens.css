@@ -1,0 +1,62 @@
+/*
+ * 设计令牌（来源：docs/design/ui-baseline.md）
+ * 主题由 JS 侧解析为 data-theme="light"|"dark" 后写入 <html>（跟随系统/手动）。
+ */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-glass: rgba(255, 255, 255, 0.72);
+  --border: rgba(17, 20, 26, 0.08);
+  --border-soft: rgba(17, 20, 26, 0.05);
+  --text: #1d2129;
+  --text-2: #6b7280;
+  --text-3: #9aa1ab;
+  --primary: #4f6bf6;
+  --primary-soft: rgba(79, 107, 246, 0.1);
+  --ring: rgba(79, 107, 246, 0.35);
+  --danger: #d64545;
+  --danger-soft: rgba(214, 69, 69, 0.1);
+
+  --radius-side: 20px;
+  --radius-card: 16px;
+  --radius-item: 10px;
+
+  --shadow-side: 0 10px 32px rgba(17, 20, 26, 0.1), 0 2px 8px rgba(17, 20, 26, 0.05);
+  --shadow-card: 0 1px 3px rgba(17, 20, 26, 0.04), 0 4px 14px rgba(17, 20, 26, 0.04);
+  --shadow-pop: 0 12px 40px rgba(17, 20, 26, 0.16);
+
+  /* 尺寸 */
+  --side-w: 240px;
+  --side-w-collapsed: 72px;
+  --side-margin: 16px;
+  --main-pad: 32px;
+  --gap-block: 24px;
+
+  /* 动效：ease-out；宽度先行，文字延迟 80ms 淡入；微动效 150–200ms */
+  --dur-fast: 0.15s;
+  --dur-med: 0.2s;
+  --dur-slow: 0.28s;
+  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --label-delay: 0.08s;
+
+  color-scheme: light;
+}
+
+[data-theme='dark'] {
+  --bg: #0f1115;
+  --surface: #16191f;
+  --surface-glass: rgba(22, 25, 31, 0.78);
+  --border: rgba(255, 255, 255, 0.09);
+  --border-soft: rgba(255, 255, 255, 0.06);
+  --text: #e7eaf0;
+  --text-2: #9aa1ab;
+  --text-3: #626a75;
+  --primary-soft: rgba(79, 107, 246, 0.22);
+  --danger-soft: rgba(214, 69, 69, 0.18);
+
+  --shadow-side: 0 10px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 4px 14px rgba(0, 0, 0, 0.18);
+  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55);
+
+  color-scheme: dark;
+}
