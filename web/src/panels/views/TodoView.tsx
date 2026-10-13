@@ -40,13 +40,19 @@ export function TodoView() {
 
   return (
     <div>
-      <input
-        className="todo-input"
-        value={draft}
-        placeholder="添加待办，回车提交"
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => e.key === 'Enter' && submit()}
-      />
+      <div className="todo-add-row">
+        <input
+          className="todo-input"
+          value={draft}
+          placeholder="添加待办，回车提交"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+        />
+        <button className="btn is-primary" onClick={submit} disabled={!draft.trim()}>
+          <IconPlus />
+          添加
+        </button>
+      </div>
 
       {active.length === 0 && done.length === 0 ? (
         <div className="aux-placeholder" style={{ marginTop: 24 }}>

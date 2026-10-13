@@ -31,10 +31,18 @@ export function Sidebar({ view, collapsed, onSelectView, onToggleCollapsed }: Si
       <aside className="sidebar">
         <div className="side-user">
           <div className="avatar">{user.name.charAt(0)}</div>
-          <div className="side-label">
-            <div className="side-user-name">{user.name}</div>
-            <div className="side-user-sub">的工作台</div>
+          <div className="side-label side-user-line">
+            <span className="side-user-name">{user.name}</span>
+            <span className="side-user-sub">的工作台</span>
           </div>
+          <button
+            className="btn-icon side-toggle"
+            aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
+            title={collapsed ? '展开侧栏' : '收起侧栏'}
+            onClick={onToggleCollapsed}
+          >
+            {collapsed ? <IconExpand /> : <IconCollapse />}
+          </button>
         </div>
 
         <nav className="side-nav">
@@ -69,10 +77,6 @@ export function Sidebar({ view, collapsed, onSelectView, onToggleCollapsed }: Si
           >
             <IconSettings />
             <span className="side-label">设置</span>
-          </button>
-          <button className="side-item" onClick={onToggleCollapsed} title={collapsed ? '展开侧栏' : '收起侧栏'}>
-            {collapsed ? <IconExpand /> : <IconCollapse />}
-            <span className="side-label">收起侧栏</span>
           </button>
         </div>
       </aside>

@@ -9,7 +9,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family: 'PingFang SC', -apple-system, system-ui, 'Microsoft YaHei', sans-serif;
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -99,6 +99,31 @@ input {
   align-items: center;
   gap: 10px;
   padding: 6px 8px 14px;
+}
+
+/* 姓名 + 「的工作台」同行显示 */
+.side-user-line {
+  display: flex;
+  align-items: baseline;
+  gap: 1px;
+  min-width: 0;
+}
+
+.side-toggle {
+  margin-left: auto;
+  flex: none;
+  color: var(--text-3);
+  transition: opacity var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+}
+
+.side-toggle:hover {
+  color: var(--text);
+  background: var(--border-soft);
+}
+
+.side-rail.is-collapsed .side-toggle {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .avatar {
@@ -264,7 +289,7 @@ input {
 /* ---------- 右栏辅助区 ---------- */
 .aux {
   flex: none;
-  width: clamp(280px, 22vw, 320px);
+  width: clamp(230px, 19vw, 260px);
   display: flex;
   flex-direction: column;
   gap: var(--gap-block);
@@ -298,12 +323,12 @@ input {
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
+  gap: 5px;
+  padding: 4px 10px;
   border-radius: var(--radius-item);
   background: var(--surface);
   border: 1px solid var(--border);
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-2);
   transition: all var(--dur-fast) var(--ease);
 }
@@ -331,9 +356,9 @@ input {
 .btn-icon {
   display: inline-grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
   color: var(--text-3);
   transition: all var(--dur-fast) var(--ease);
 }
@@ -344,9 +369,16 @@ input {
 }
 
 /* ---------- 待办 ---------- */
+.todo-add-row {
+  display: flex;
+  gap: 8px;
+}
+
 .todo-input {
-  width: 100%;
-  padding: 11px 14px;
+  flex: 1;
+  min-width: 0;
+  width: auto;
+  padding: 9px 14px;
   border: 1px solid var(--border);
   border-radius: var(--radius-card);
   background: var(--surface);
@@ -706,7 +738,7 @@ input {
     top: 0;
     right: 0;
     bottom: 0;
-    width: min(320px, 86vw);
+    width: min(260px, 86vw);
     padding: var(--side-margin);
     background: var(--bg);
     box-shadow: var(--shadow-pop);
