@@ -1,0 +1,15 @@
+:root {
+  /* 对应 main.go 的窗口底色；T3 按 docs/design/ui-baseline.md 扩展完整令牌 */
+  --bg: light-dark(#f6f7f9, #0f1115);
+  color-scheme: light dark;
+}
+
+body {
+  margin: 0;
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  background: var(--bg);
+  font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 15px;
+}

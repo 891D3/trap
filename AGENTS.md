@@ -42,12 +42,14 @@
 - **引擎**：Go（工作流执行引擎，以 mygo 插件形式存在，经 RPC + WebSocket 事件流暴露给前端）
 - **前端**：React + TypeScript + React Flow（DAG 画布）
 - **存储**：SQLite（结构化数据）；本地文件（原始/导出数据）
-- **包管理与命令**：（待项目脚手架确定后补充，示例）
-  - 后端：`go build ./...` / `go test ./...`
-  - 前端：`pnpm install` / `pnpm dev` / `pnpm test` / `pnpm build`
-  - 整体启动：（待补充：mygo 加载插件的方式）
+- **包管理与命令**（2026-10-13 脚手架确定，npm 替代 bun）
+  - 后端：`go build ./...` / `go vet ./...` / `go test ./...`
+  - 前端：`npm install` / `npm run dev:web`（Vite）/ `npm run typecheck` / `npm run build:web`
+  - 整体启动：`npm run dev`（mygo dev：Go 应用 + 前端热重载）；`npm run generate` 重新生成 TS 客户端；`npm run build` 打包
 
-### 1.3 目录结构（目标形态）
+### 1.3 目录结构（2026-10-13 T1 脚手架后实际形态）
+
+> 原「目标形态」中的 `engine/` 已按 BRD v0.2 架构决策调整为 mygo 应用本体（业务代码即应用，通信经 mygo typed IPC 而非自建 RPC/WS）；长期工作流引擎（F10）实现时在 `internal/` 下新增 scheduler/node/executor/eventlog 子包。
 
 ```
 Trap/
@@ -56,25 +58,28 @@ Trap/
 │   ├── brd/BRD.md          # 业务需求文档（持续完善）
 │   ├── prd/                # 各功能 PRD（从 BRD 拆分细化）
 │   ├── requirements/       # 需求评估记录
+│   ├── design/             # UI 设计基线（ui-baseline.md）
 │   └── devlog/             # 开发日志 YYYY-MM-DD-<topic>.md
-├── engine/                 # Go 工作流执行引擎（mygo 插件）
-│   ├── scheduler/          # DAG 调度器
-│   ├── node/               # 节点状态机与节点类型实现
-│   ├── executor/           # 本地子进程执行器
-│   ├── eventlog/           # 事件日志落盘
-│   ├── rpc/                # RPC + WebSocket 服务封装
-│   └── store/              # SQLite 访问层
-├── web/                    # React + React Flow 前端
-│   ├── src/
-│   │   ├── canvas/         # DAG 画布与节点组件
-│   │   ├── realtime/       # WebSocket 事件流接入与状态同步
-│   │   ├── panels/         # 统计、审批卡点等面板
-│   │   └── api/            # RPC client
-│   └── tests/              # 前端单测
-└── e2e/                    # E2E 测试
+├── main.go                 # mygo 应用入口（Bind 服务 + 窗口创建）
+├── internal/
+│   ├── service/            # typed IPC 服务（Todo/Note/QuickLink/App）
+│   └── store/              # SQLite 访问层（唯一允许写 SQL 的包）
+├── migrations/             # SQLite 版本化迁移（编号递增，禁止改已发布迁移）
+├── resources/              # 应用图标等打包资源
+├── mygo.config.ts          # mygo 配置（dev/build/generate/bindings 指向 web/src/mygo.ts）
+├── vite.config.ts          # Vite 配置（root: web）
+├── package.json            # 前端工具链（npm；scripts: dev/build/generate/typecheck）
+├── web/                    # React + TypeScript 前端（Vite root）
+│   ├── index.html
+│   ├── tsconfig.json
+│   └── src/
+│       ├── mygo.ts         # mygo generate 生成（勿手改）
+│       ├── api/            # 客户端调用封装（超时/错误 toast）
+│       ├── realtime/       # mygo Events 事件流接入与状态同步
+│       ├── panels/         # 待办/信息记录/快捷入口/设置/辅助区组件
+│       └── canvas/         # （M5+ 工作流画布预留）
+└── e2e/                    # E2E 测试（待建）
 ```
-
-> 脚手架搭建时以此为准；实际调整后必须同步更新本节。
 
 ---
 
@@ -84,8 +89,8 @@ Trap/
 | -------- | ------------------------------------------- | ------------------------------------------------------------------ |
 | 需求评估 | `docs/requirements/`                        | 只读调研后输出评估（价值/可行性/工作量/依赖/风险），确认后进入 PRD |
 | BRD/PRD  | `docs/brd/BRD.md` / `docs/prd/<feature>.md` | BRD 记录业务需求全景并持续完善；单个功能先拆 PRD 再开发            |
-| 代码开发 | `engine/`、`web/`                           | 遵守本文件规范；并行任务用 git worktree 隔离                       |
-| 单元测试 | `engine/**/*_test.go`、`web/tests/`         | 改动后跑相关单测；提交前跑全量                                     |
+| 代码开发 | `internal/`、`web/`                          | 遵守本文件规范；并行任务用 git worktree 隔离                       |
+| 单元测试 | `internal/**/*_test.go`、`web/src/**/*.test.ts` | 改动后跑相关单测；提交前跑全量                                  |
 | E2E 测试 | `e2e/`                                      | 用户可见行为变更必须补充/更新 E2E 用例                             |
 | 过程总结 | 会话收尾口头总结                            | 含决策依据与验证结果                                               |
 | 开发日志 | `docs/devlog/YYYY-MM-DD-<topic>.md`         | 见第 7 节模板                                                      |
@@ -109,9 +114,9 @@ Trap/
 
 ## 4. 架构与编码规范
 
-- **整体要求**：代码需简洁明了，易于让人类工程师阅读和检查。
+- **整体要求**：代码需简洁明了，易于让人类工程师阅读和检查；所有代码需要有详细中文注释
 
-### 4.1 Go（engine）
+### 4.1 Go（internal/）
 
 - 模块划分按 1.3 节目录；`store/` 是唯一允许写 SQL 的包，其余包通过接口访问数据。
 - DAG 调度器只做调度，不做业务；节点逻辑一律实现为可注册的节点类型（注册表模式）。
@@ -128,7 +133,7 @@ Trap/
 
 ### 4.3 协议约定（RPC / WebSocket）
 
-- RPC 与 WS 消息 schema 定义为唯一事实源（建议 `engine/rpc/schema` 中定义，前端生成或手写对应类型）；两端类型必须同步演进，禁止前端私自加字段。
+- RPC 与事件消息 schema 以 `mygo generate` 生成的 TS 客户端（`web/src/mygo.ts`）为唯一事实源（Go 侧服务/事件定义变更后重新生成）；两端类型必须同步演进，禁止前端私自加字段。
 - 所有事件必须带：`runId`、`nodeId`、`type`、`timestamp`、`seq`（用于排序与去重）。
 
 ### 4.4 SQLite
@@ -182,7 +187,7 @@ Trap/
 ## 8. 交付检查单
 
 - [ ] `go test ./...` 全量通过，`go vet ./...` 干净
-- [ ] 前端 `pnpm test` / lint / 类型检查通过
+- [ ] 前端 `npm run typecheck` / lint / 测试通过
 - [ ] E2E 主链路通过
 - [ ] SQLite 迁移可从零重放成功
 - [ ] 事件日志回放恢复测试通过
@@ -193,6 +198,6 @@ Trap/
 ## 9. 其他
 
 - agent 遇到本文件未覆盖、且后果不可逆的操作，必须先询问。
-- agent 引用代码时须带文件路径与行号（如 `engine/scheduler/dag.go:42`）。
+- agent 引用代码时须带文件路径与行号（如 `internal/store/sqlite.go:42`）。
 - 本文件由团队维护；agent 不主动修改本文件，除非被明确要求。
 - **mygo 的插件注册方式、RPC/WS 具体协议属外部约定**：如仓库内缺少 mygo 插件开发文档，agent 必须先向用户索取或查证，禁止凭猜测杜撰接口。
