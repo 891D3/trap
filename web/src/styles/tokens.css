@@ -1,62 +1,93 @@
 /*
- * 设计令牌（来源：docs/design/ui-baseline.md）
+ * 设计令牌 v2（来源：docs/design/ui-baseline.md「v2 生效令牌」，参考模板 stylekit file-manager）
  * 主题由 JS 侧解析为 data-theme="light"|"dark" 后写入 <html>（跟随系统/手动）。
+ * 配色取 Tailwind gray/blue 色板；卡片以细边框分层，默认无投影。
  */
 :root {
-  --bg: #f6f7f9;
-  --surface: #ffffff;
-  --surface-glass: rgba(255, 255, 255, 0.72);
-  --border: rgba(17, 20, 26, 0.08);
-  --border-soft: rgba(17, 20, 26, 0.05);
-  --text: #1d2129;
-  --text-2: #6b7280;
-  --text-3: #9aa1ab;
-  --primary: #4f6bf6;
-  --primary-soft: rgba(79, 107, 246, 0.1);
-  --ring: rgba(79, 107, 246, 0.35);
-  --danger: #d64545;
-  --danger-soft: rgba(214, 69, 69, 0.1);
+  /* 颜色 */
+  --bg: #f9fafb; /* gray-50：页面底 */
+  --surface: #ffffff; /* 卡片、侧栏、头部 */
+  --surface-glass: #f9fafb; /* 右栏卡片：与页面同底 + 1px 细边，视觉权重低于中栏白卡 */
+  --border: #e5e7eb; /* gray-200：主边框 */
+  --border-soft: #f3f4f6; /* gray-100：区块内分隔 */
+  --text: #111827; /* gray-900 */
+  --text-2: #6b7280; /* gray-500 */
+  --text-3: #9ca3af; /* gray-400 */
+  --primary: #3080ff; /* blue-500（模板实际值，Tailwind v4） */
+  --primary-hover: #155dfc; /* blue-600 */
+  --primary-text: #1447e6; /* blue-700：激活导航字色 */
+  --primary-soft: #eff6ff; /* blue-50：激活底衬 */
+  --ring: #90c5ff; /* blue-300：聚焦/悬停描边 */
+  --danger: #dc2626; /* red-600 */
+  --danger-soft: #fef2f2; /* red-50 */
 
-  --radius-side: 14px;
-  --radius-card: 14px;
-  --radius-item: 14px;
+  /* 模板按钮色系（Tailwind -600 字 / -50 底 / -200 边） */
+  --blue-text: #155dfc;
+  --blue-border: #bedbff;
+  --green-text: #00a544;
+  --green-soft: #f0fdf4;
+  --green-border: #b9f8cf;
+  --purple-text: #9810fa;
+  --purple-soft: #faf5ff;
+  --purple-border: #e9d5ff;
+  --text-body: #374151; /* gray-700：中性按钮字色 */
 
-  --shadow-side: 0 10px 32px rgba(17, 20, 26, 0.1), 0 2px 8px rgba(17, 20, 26, 0.05);
-  --shadow-card: 0 1px 3px rgba(17, 20, 26, 0.04), 0 4px 14px rgba(17, 20, 26, 0.04);
-  --shadow-pop: 0 12px 40px rgba(17, 20, 26, 0.16);
+  /* 圆角：卡片 12px（xl），控件与导航 8px（lg） */
+  --radius-side: 0px;
+  --radius-card: 12px;
+  --radius-item: 8px;
+  --radius-ctrl: 8px;
+
+  /* 阴影：静态无投影；仅悬浮与弹层使用 */
+  --shadow-side: none;
+  --shadow-card: none;
+  --shadow-hover: 0 4px 12px rgba(17, 24, 39, 0.08);
+  --shadow-pop: 0 12px 32px rgba(17, 24, 39, 0.14);
 
   /* 尺寸 */
   --side-w: 240px;
   --side-w-collapsed: 72px;
-  --side-margin: 12px;
-  --main-pad: 10px;
+  --side-margin: 0px;
+  --main-pad: 16px;
   --gap-block: 12px;
 
-  /* 动效：ease-out；宽度先行，文字延迟 80ms 淡入；微动效 150–200ms */
+  /* 动效：ease-out；宽度/高度先行，文字延迟 80ms 淡入；微动效 150–200ms */
   --dur-fast: 0.15s;
   --dur-med: 0.2s;
   --dur-slow: 0.28s;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --label-delay: 0.08s;
 
+  /* 字体：沿用系统字体栈（不引入字体文件，见 ui-baseline v2 字体说明） */
+  --font-sans: 'PingFang SC', -apple-system, system-ui, 'Helvetica Neue', 'Microsoft YaHei', sans-serif;
+
   color-scheme: light;
 }
 
 [data-theme='dark'] {
-  --bg: #0f1115;
-  --surface: #16191f;
-  --surface-glass: rgba(22, 25, 31, 0.78);
-  --border: rgba(255, 255, 255, 0.09);
+  --bg: #0b0f14;
+  --surface: #111827;
+  --surface-glass: #0b0f14;
+  --border: rgba(255, 255, 255, 0.1);
   --border-soft: rgba(255, 255, 255, 0.06);
-  --text: #e7eaf0;
-  --text-2: #9aa1ab;
-  --text-3: #626a75;
-  --primary-soft: rgba(79, 107, 246, 0.22);
-  --danger-soft: rgba(214, 69, 69, 0.18);
+  --text: #f3f4f6;
+  --text-2: #9ca3af;
+  --text-3: #6b7280;
+  --primary-text: #93c5fd;
+  --primary-soft: rgba(59, 130, 246, 0.16);
+  --danger-soft: rgba(220, 38, 38, 0.16);
+  --blue-text: #93c5fd;
+  --blue-border: rgba(59, 130, 246, 0.4);
+  --green-text: #4ade80;
+  --green-soft: rgba(34, 197, 94, 0.14);
+  --green-border: rgba(34, 197, 94, 0.4);
+  --purple-text: #c084fc;
+  --purple-soft: rgba(168, 85, 247, 0.14);
+  --purple-border: rgba(168, 85, 247, 0.4);
+  --text-body: #d1d5db;
 
-  --shadow-side: 0 10px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.25), 0 4px 14px rgba(0, 0, 0, 0.18);
-  --shadow-pop: 0 12px 40px rgba(0, 0, 0, 0.55);
+  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.35);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.55);
 
   color-scheme: dark;
 }

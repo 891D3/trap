@@ -10,6 +10,7 @@ import {
   IconTodo,
 } from '../components/icons';
 import { useStore } from '../state/app-store';
+import { Avatar } from '../components/Avatar';
 
 type SidebarProps = {
   view: ViewId;
@@ -32,7 +33,7 @@ export function Sidebar({ view, collapsed, onSelectView, onToggleCollapsed }: Si
     <div className={`side-rail${collapsed ? ' is-collapsed' : ''}`}>
       <aside className="sidebar">
         <div className="side-user">
-          <div className="avatar">{user.name.charAt(0)}</div>
+          <Avatar name={user.name} />
           <div className="side-label side-user-line">
             <span className="side-user-name">{user.name}</span>
             <span className="side-user-sub">的工作台</span>

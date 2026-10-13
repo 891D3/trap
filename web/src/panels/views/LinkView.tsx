@@ -26,7 +26,8 @@ export function LinkView() {
         <div className="link-grid">
           {links.map((l) => (
             <div className="link-card" key={l.id} title={l.target}>
-              <div className="link-avatar" style={{ background: avatarColorFor(l.name) }}>
+              {/* 图标块：10% 透明度浅底 + 同色字（模板风格） */}
+              <div className="link-avatar" style={{ background: `${avatarColorFor(l.name)}1a`, color: avatarColorFor(l.name) }}>
                 {l.name.charAt(0)}
               </div>
               <div style={{ minWidth: 0 }}>

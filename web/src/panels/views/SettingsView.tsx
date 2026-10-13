@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTheme } from '../../state/app-store';
 import { useStore } from '../../state/app-store';
+import { Avatar } from '../../components/Avatar';
 
 const THEME_OPTIONS: { value: 'system' | 'light' | 'dark'; label: string }[] = [
   { value: 'system', label: '跟随系统' },
@@ -45,9 +46,9 @@ export function SettingsView() {
         <div className="settings-row">
           <div>
             <div className="settings-row-label">头像</div>
-            <div className="settings-row-hint">选择本地图片（T2 接入，当前显示姓名首字）</div>
+            <div className="settings-row-hint">选择本地图片（T2 接入，当前为默认头像）</div>
           </div>
-          <div className="avatar">{user.name.charAt(0)}</div>
+          <Avatar name={user.name} />
         </div>
       </section>
 

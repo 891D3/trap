@@ -9,7 +9,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'PingFang SC', -apple-system, system-ui, 'Microsoft YaHei', sans-serif;
+  font-family: var(--font-sans);
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -36,10 +36,10 @@ input {
 
 ::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: var(--radius-card);
+  border-radius: 999px;
 }
 
-/* ---------- 三栏布局 ---------- */
+/* ---------- 三栏布局（v2：贴边分栏，细边分隔，无悬浮投影） ---------- */
 .app {
   display: flex;
   height: 100vh;
@@ -47,7 +47,7 @@ input {
   gap: var(--gap-block);
 }
 
-/* 悬浮岛式侧栏：wrapper 撑位（72 或 240），panel 绝对定位悬浮 */
+/* 侧栏：wrapper 撑位（72 或 240），panel 绝对定位 */
 .side-rail {
   position: relative;
   flex: none;
@@ -68,6 +68,7 @@ input {
   flex-direction: column;
   padding: 18px 12px;
   background: var(--surface);
+  border-right: 1px solid var(--border);
   border-radius: var(--radius-side);
   box-shadow: var(--shadow-side);
   overflow: hidden;
@@ -124,6 +125,7 @@ input {
   flex: 1;
 }
 
+/* 头像：44px 圆形，2px 主色描边，图片裁为圆形填满 */
 .avatar {
   flex: none;
   width: 44px;
@@ -131,10 +133,14 @@ input {
   border-radius: 50%;
   border: 2px solid var(--primary);
   background: var(--primary-soft);
-  display: grid;
-  place-items: center;
-  font-weight: 600;
-  color: var(--primary);
+  overflow: hidden;
+}
+
+.avatar img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .side-user-name {
@@ -156,9 +162,9 @@ input {
 .side-item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   width: 100%;
-  padding: 9px 10px;
+  padding: 10px 12px;
   border-radius: var(--radius-item);
   color: var(--text-2);
   font-size: 14px;
@@ -173,7 +179,7 @@ input {
 
 .side-item.is-active {
   background: var(--primary-soft);
-  color: var(--primary);
+  color: var(--primary-text);
   font-weight: 500;
 }
 
@@ -217,7 +223,7 @@ input {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  padding: 8px var(--main-pad) 16px;
+  padding: 20px var(--main-pad) 16px;
   overflow: hidden;
 }
 
@@ -226,7 +232,7 @@ input {
   align-items: flex-end;
   justify-content: space-between;
   gap: 16px;
-  margin: 10px 0 20px;
+  margin: 4px 0 18px;
 }
 
 .main-title {
@@ -243,14 +249,16 @@ input {
 
 .stat-row {
   display: flex;
-  gap: 24px;
-  margin-bottom: 24px;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
+/* 统计卡：白底 + 细边，无投影 */
 .stat-card {
   min-width: 180px;
   padding: 16px 20px;
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
 }
@@ -284,7 +292,7 @@ input {
   }
 }
 
-/* ---------- 右栏辅助区 ---------- */
+/* ---------- 右栏辅助区（低视觉权重：页面底色 + 细边卡片） ---------- */
 .aux {
   flex: none;
   width: clamp(230px, 19vw, 260px);
@@ -292,6 +300,7 @@ input {
   flex-direction: column;
   gap: var(--gap-block);
   overflow-y: auto;
+  padding: 20px 16px 20px 0;
   padding-bottom: 4px;
 }
 
@@ -318,26 +327,33 @@ input {
 }
 
 /* ---------- 通用控件 ---------- */
+/* 按钮（对齐模板）：高度沿用 26px 基准（用户多次反馈要求），圆角 8px（rounded-lg），字重 500 */
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  min-height: 26px;
-  padding: 1px 12px;
-  border-radius: var(--radius-card);
+  align-self: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: var(--radius-ctrl);
   background: var(--surface);
   border: 1px solid var(--border);
-  font-size: 13px;
-  color: var(--text-2);
+  font-size: 14px;
+  line-height: 20px;
+  white-space: nowrap;
+  font-weight: 500;
+  color: var(--text-body);
   transition: all var(--dur-fast) var(--ease);
 }
 
+/* 中性按钮悬停：模板 hover:shadow-sm + 灰底 */
 .btn:hover {
-  color: var(--text);
-  border-color: var(--text-3);
+  background: var(--border-soft);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.06);
 }
 
+/* 主按钮：蓝色实底白字（模板 bg-blue-500 text-white / hover bg-blue-600） */
 .btn.is-primary {
   background: var(--primary);
   border-color: var(--primary);
@@ -345,14 +361,43 @@ input {
 }
 
 .btn.is-primary:hover {
-  opacity: 0.92;
+  background: var(--primary-hover);
+  border-color: var(--primary-hover);
+  color: #fff;
+  box-shadow: none;
 }
 
 .btn.is-primary:disabled {
   opacity: 1;
   background: var(--primary-soft);
   border-color: transparent;
-  color: var(--primary);
+  color: var(--primary-text);
+}
+
+/* 色系次按钮（模板 New Folder/Upload File/Share）：浅色底 + 同色系细边 + 同色字，悬停微阴影 */
+.btn.is-blue {
+  background: var(--primary-soft);
+  border-color: var(--blue-border);
+  color: var(--blue-text);
+}
+
+.btn.is-green {
+  background: var(--green-soft);
+  border-color: var(--green-border);
+  color: var(--green-text);
+}
+
+.btn.is-purple {
+  background: var(--purple-soft);
+  border-color: var(--purple-border);
+  color: var(--purple-text);
+}
+
+/* 色系按钮悬停只加阴影，底色保持不变（此处不覆盖 background） */
+.btn.is-blue:hover,
+.btn.is-green:hover,
+.btn.is-purple:hover {
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
 }
 
 .btn:disabled {
@@ -360,19 +405,20 @@ input {
   cursor: default;
 }
 
+/* 图标按钮（模板 p-1.5 rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-700） */
 .btn-icon {
   display: inline-grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-card);
-  color: var(--text-3);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  color: var(--text-2);
   transition: all var(--dur-fast) var(--ease);
 }
 
 .btn-icon:hover {
   background: var(--border-soft);
-  color: var(--danger);
+  color: var(--text);
 }
 
 /* ---------- 待办 ---------- */
@@ -391,9 +437,11 @@ input {
   flex: 1;
   min-width: 0;
   width: auto;
-  padding: 9px 14px;
+  height: 36px;
+  padding: 0 16px;
+  font-size: 14px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-card);
+  border-radius: var(--radius-ctrl);
   background: var(--surface);
   box-shadow: var(--shadow-card);
   outline: none;
@@ -413,24 +461,27 @@ input {
   gap: 4px;
 }
 
+/* 待办行：悬停变白底细边（模板列表悬停风格） */
 .todo-item {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 9px 12px;
+  border: 1px solid transparent;
   border-radius: var(--radius-item);
-  transition: background var(--dur-fast) var(--ease);
+  transition: background var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
 }
 
 .todo-item:hover {
   background: var(--surface);
+  border-color: var(--border);
 }
 
 .todo-check {
   flex: none;
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-card);
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
   border: 1.5px solid var(--text-3);
   display: grid;
   place-items: center;
@@ -475,25 +526,33 @@ input {
 }
 
 /* ---------- 信息记录 ---------- */
+/* 分段控件：灰底槽 + 选中项白底浮起（模板视图切换风格） */
 .filter-tabs {
   display: inline-flex;
-  gap: 4px;
-  padding: 3px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
+  gap: 2px;
+  padding: 2px;
+  background: var(--border-soft);
+  border-radius: var(--radius-ctrl);
 }
 
 .filter-tab {
-  padding: 3px 12px;
-  border-radius: var(--radius-card);
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 20px;
+  white-space: nowrap;
   color: var(--text-2);
+  transition: all var(--dur-fast) var(--ease);
 }
 
 .filter-tab.is-active {
-  background: var(--primary-soft);
-  color: var(--primary);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
+  font-weight: 500;
 }
 
 .note-grid {
@@ -503,21 +562,23 @@ input {
   margin-top: 16px;
 }
 
+/* 卡片：白底细边，悬停蓝描边 + 轻阴影（模板卡片悬停） */
 .note-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
   padding: 14px 16px;
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   cursor: pointer;
-  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 .note-card:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-pop);
+  border-color: var(--ring);
+  box-shadow: var(--shadow-hover);
 }
 
 .note-card-title {
@@ -546,7 +607,7 @@ input {
 
 .note-badge {
   padding: 1px 8px;
-  border-radius: var(--radius-card);
+  border-radius: 6px;
   font-size: 11px;
   background: var(--border-soft);
   color: var(--text-2);
@@ -566,27 +627,28 @@ input {
   gap: 12px;
   padding: 14px 16px;
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   cursor: pointer;
-  transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
 }
 
 .link-card:hover {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-pop);
+  border-color: var(--ring);
+  box-shadow: var(--shadow-hover);
 }
 
+/* 图标块：模板 w-10 h-10 rounded-lg 浅色底 + 同色字（颜色由组件内联 hex 与 10% 透明度底生成） */
 .link-avatar {
   flex: none;
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-card);
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-ctrl);
   display: grid;
   place-items: center;
   font-weight: 700;
   font-size: 16px;
-  color: #fff;
 }
 
 .link-name {
@@ -606,7 +668,7 @@ input {
 .overlay {
   position: fixed;
   inset: 0;
-  background: rgba(10, 12, 16, 0.35);
+  background: rgba(17, 24, 39, 0.3);
   display: grid;
   place-items: center;
   z-index: 50;
@@ -626,6 +688,7 @@ input {
   width: min(380px, calc(100vw - 48px));
   padding: 20px;
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-pop);
   animation: view-in var(--dur-fast) var(--ease);
@@ -662,10 +725,10 @@ input {
 }
 
 .field input {
-  padding: 9px 12px;
+  padding: 8px 12px;
   border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--bg);
+  border-radius: var(--radius-ctrl);
+  background: var(--surface);
   outline: none;
 }
 
@@ -676,9 +739,10 @@ input {
 /* ---------- 设置 ---------- */
 .settings-section {
   max-width: 560px;
-  margin-bottom: 28px;
+  margin-bottom: 24px;
   padding: 20px;
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
 }
@@ -711,23 +775,29 @@ input {
 
 .seg {
   display: inline-flex;
-  gap: 4px;
-  padding: 3px;
-  background: var(--bg);
-  border-radius: var(--radius-card);
+  gap: 2px;
+  padding: 2px;
+  background: var(--border-soft);
+  border-radius: var(--radius-ctrl);
 }
 
 .seg-btn {
-  padding: 3px 12px;
-  border-radius: var(--radius-card);
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 20px;
+  white-space: nowrap;
   color: var(--text-2);
+  transition: all var(--dur-fast) var(--ease);
 }
 
 .seg-btn.is-active {
   background: var(--surface);
   color: var(--text);
-  box-shadow: var(--shadow-card);
+  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
   font-weight: 500;
 }
 
@@ -735,7 +805,7 @@ input {
 @media (max-width: 1199px) {
   .app {
     gap: 0;
-    padding-left: 12px;
+    padding-left: 0;
   }
 
   .side-rail:not(.is-collapsed) {
@@ -752,8 +822,9 @@ input {
     right: 0;
     bottom: 0;
     width: min(260px, 86vw);
-    padding: var(--side-margin);
+    padding: 16px;
     background: var(--bg);
+    border-left: 1px solid var(--border);
     box-shadow: var(--shadow-pop);
     transform: translateX(100%);
     transition: transform var(--dur-slow) var(--ease);
@@ -765,6 +836,6 @@ input {
   }
 
   .main {
-    padding: 8px 20px 16px;
+    padding: 20px 20px 16px;
   }
 }

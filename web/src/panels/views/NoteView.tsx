@@ -28,7 +28,8 @@ export function NoteView() {
           </button>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button className="btn" disabled title="T2 数据层完成后开放">
+          {/* 绿色次按钮：对应模板“Upload File”一类操作按钮 */}
+          <button className="btn is-green" disabled title="T2 数据层完成后开放">
             <IconExport />
             整理导出
           </button>

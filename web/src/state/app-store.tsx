@@ -75,12 +75,13 @@ const initialLinks: QuickLink[] = [
   { id: 22, name: 'npm', target: 'https://www.npmjs.com', kind: 'url', groupName: '开发' },
 ];
 
-const avatarColors = ['#4f6bf6', '#2fa574', '#d97706', '#8b5cf6', '#dc4a7d'];
+// v2 样式：取模板文件图标的色板（blue/green/orange/purple/pink-500），与图标块浅底搭配
+const avatarColors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ec4899'];
 
 export const avatarColorFor = (name: string): string => {
   let hash = 0;
   for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
-  return avatarColors[hash % avatarColors.length] ?? '#4f6bf6';
+  return avatarColors[hash % avatarColors.length] ?? '#3b82f6';
 };
 
 /* ---------- 主题 ---------- */
