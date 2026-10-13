@@ -48,7 +48,7 @@ export function TodoView() {
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
         />
-        <button className="btn is-primary" onClick={submit} disabled={!draft.trim()}>
+        <button className="btn is-primary" onClick={submit}>
           <IconPlus />
           添加
         </button>
