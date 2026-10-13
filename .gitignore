@@ -31,6 +31,9 @@ secrets/
 # mygo 运行时缓存
 .mygo/
 
+# Agent 本地技能与运行目录
+.agents/
+
 # 编辑器
 .idea/
 .vscode/
