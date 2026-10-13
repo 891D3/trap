@@ -116,7 +116,7 @@ input {
 
 .side-user-name {
   font-weight: 600;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .side-user-sub {
@@ -138,6 +138,7 @@ input {
   padding: 9px 10px;
   border-radius: var(--radius-item);
   color: var(--text-2);
+  font-size: 14px;
   text-align: left;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
@@ -402,6 +403,7 @@ input {
 .todo-text {
   flex: 1;
   min-width: 0;
+  font-size: 12px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
