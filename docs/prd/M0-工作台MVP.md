@@ -220,6 +220,7 @@ func (AppService) OpenDataDir(ctx) error
 | T2 | 数据层：迁移机制 + settings/todos/notes/quick_links 表 + store 层 + 单测 | T1 | 1.5–2 |
 | T3.0 | 设计基线：`docs/design/ui-baseline.md`（用户提供的设计提示词 + M0 适用性映射）定稿 | — | 0.5 |
 | T3 | F1 壳：三栏布局/导航/主题/设置页 + 辅助区占位，**按 ui-baseline 实现，先出可看界面交用户过目** | T1、T3.0 | 2–3 |
+| T3.1 | 设置真实接入：AppService 持久化、settings.changed 事件、前端状态同步 | T2、T3 | 0.5–1 |
 | T4 | F2 待办：服务 + 生成客户端 + UI + 单测 | T2、T3 | 1.5–2 |
 | T5 | F3 信息记录：Milkdown 集成（**先行集成冒烟**）+ CRUD/归档/导出 | T2 | 3–4 |
 | T6 | F4 快捷入口：CRUD/分组/跳转 | T2 | 1–1.5 |
@@ -230,7 +231,8 @@ func (AppService) OpenDataDir(ctx) error
 ### 执行状态（随开发更新）
 
 - 2026-10-13：T1 完成；T3.0 完成；T3 壳完成、样式重构完成并提交（e8e6bb6，用户目检通过）。
-- 2026-10-13：T2 数据层完成（分支 `feature/m0-data-layer`）：迁移机制 + 四表 + `internal/store` + AppService 设置读写 + Go 单测全绿；用户已确认接受迁移 SQL 位于 `internal/store/migrations/`（go:embed 无法引包外目录）。待 T4–T6 的服务层与前端接入。
+- 2026-10-13：T2 数据层完成（分支 `feature/m0-data-layer`）：迁移机制 + 四表 + `internal/store` + AppService 设置读写 + Go 单测全绿；用户已确认接受迁移 SQL 位于 `internal/store/migrations/`（go:embed 无法引包外目录）。
+- 2026-10-13：T3.1 设置真实接入完成（分支 `feature/m0-settings-integration`）：设置初始化、持久化、settings.changed 同步、中文错误提示与导出目录手动保存已接入；真实 macOS WKWebView E2E 已通过，待用户确认提交。
 
 ## 9. 脚手架与目录约定（拟定）
 

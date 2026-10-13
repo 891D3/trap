@@ -6,6 +6,7 @@
     "dev": "mygo dev",
     "build": "mygo build",
     "generate": "mygo generate",
+    "test:e2e": "bash e2e/run-settings.sh",
     "dev:web": "vite",
     "build:web": "tsc -p web --noEmit && vite build",
     "typecheck": "tsc -p web --noEmit"

@@ -1,14 +1,26 @@
-// T3 阶段的本地状态与 mock 数据；T2 数据层完成后，本模块的动作将改为
-// 经 web/src/api/ 调用 Go 服务，事件经 mygo Events 同步（届时本文件删除或收敛为适配层）。
 import {
   createContext,
   useCallback,
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
+import {
+  DEFAULT_APP_SETTINGS,
+  getAppSettings,
+  setAppTheme,
+  setExportDirectory,
+  toChineseError,
+  updateUserProfile,
+  type AppSettings,
+  type ThemeSetting,
+} from '../api/app-settings';
+import { subscribeSettingsChanged } from '../realtime/settings-events';
+
+export type { ThemeSetting } from '../api/app-settings';
 
 /* ---------- 实体类型（T2 与 Go 侧对齐） ---------- */
 
@@ -36,11 +48,9 @@ export type QuickLink = {
   groupName: string;
 };
 
-export type ThemeSetting = 'system' | 'light' | 'dark';
-
 export type ViewId = 'dashboard' | 'todo' | 'note' | 'link' | 'settings';
 
-/* ---------- mock 数据 ---------- */
+/* ---------- 仍未接入 T4–T6 的 mock 数据 ---------- */
 
 const now = () => new Date().toISOString();
 
@@ -86,43 +96,23 @@ export const avatarColorFor = (name: string): string => {
 
 /* ---------- 主题 ---------- */
 
-const THEME_KEY = 'trap.theme';
-
 function resolveTheme(setting: ThemeSetting): 'light' | 'dark' {
   if (setting !== 'system') return setting;
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
-export function useTheme(): [ThemeSetting, (s: ThemeSetting) => void] {
-  const [setting, setSetting] = useState<ThemeSetting>(() => {
-    const saved = localStorage.getItem(THEME_KEY);
-    return saved === 'light' || saved === 'dark' || saved === 'system' ? saved : 'system';
-  });
-
-  useEffect(() => {
-    const apply = () => {
-      document.documentElement.dataset.theme = resolveTheme(setting);
-    };
-    apply();
-    if (setting !== 'system') return;
-    const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
-  }, [setting]);
-
-  const update = useCallback((s: ThemeSetting) => {
-    localStorage.setItem(THEME_KEY, s);
-    setSetting(s);
-  }, []);
-
-  return [setting, update];
-}
-
 /* ---------- 应用状态 ---------- */
 
 type AppStore = {
-  user: { name: string };
-  renameUser: (name: string) => void;
+  user: { name: string; avatarPath: string };
+  renameUser: (name: string) => Promise<void>;
+  theme: ThemeSetting;
+  setTheme: (setting: ThemeSetting) => Promise<void>;
+  exportDir: string;
+  dataDir: string;
+  settingsLoading: boolean;
+  settingsError: string | null;
+  setExportDir: (directory: string) => Promise<void>;
   todos: Todo[];
   addTodo: (title: string) => void;
   setTodoDone: (id: number, done: boolean) => void;
@@ -140,7 +130,101 @@ type AppStore = {
 const StoreContext = createContext<AppStore | null>(null);
 
 export function AppStoreProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState({ name: 'Eric' });
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const settingsEventVersion = useRef(0);
+
+  // 首次从 Go 加载设置，并在 Provider 生命周期内统一订阅 settings.changed。
+  useEffect(() => {
+    let active = true;
+    const unsubscribe = subscribeSettingsChanged((nextSettings) => {
+      if (!active) return;
+      settingsEventVersion.current += 1;
+      setSettings(nextSettings);
+      setSettingsError(null);
+    });
+    const requestedEventVersion = settingsEventVersion.current;
+
+    void getAppSettings()
+      .then((nextSettings) => {
+        // 如果请求期间已经收到其他窗口的更新，避免旧响应覆盖事件中的新值。
+        if (active && settingsEventVersion.current === requestedEventVersion) {
+          setSettings(nextSettings);
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) setSettingsError(toChineseError(error, '设置加载失败，请稍后重试'));
+      })
+      .finally(() => {
+        if (active) setSettingsLoading(false);
+      });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
+  const renameUser = useCallback(
+    async (name: string): Promise<void> => {
+      const trimmedName = name.trim();
+      if (!trimmedName) {
+        const error = new Error('姓名不能为空');
+        setSettingsError(error.message);
+        throw error;
+      }
+
+      const previous = settings;
+      setSettings((current) => ({ ...current, name: trimmedName }));
+      setSettingsError(null);
+      try {
+        const nextSettings = await updateUserProfile(trimmedName, previous.avatarPath);
+        setSettings(nextSettings);
+      } catch (error: unknown) {
+        const message = toChineseError(error, '用户资料保存失败，请稍后重试');
+        setSettings(previous);
+        setSettingsError(message);
+        throw new Error(message);
+      }
+    },
+    [settings],
+  );
+
+  const updateTheme = useCallback(
+    async (nextTheme: ThemeSetting): Promise<void> => {
+      const previous = settings;
+      setSettings((current) => ({ ...current, theme: nextTheme }));
+      setSettingsError(null);
+      try {
+        await setAppTheme(nextTheme);
+      } catch (error: unknown) {
+        const message = toChineseError(error, '主题保存失败，请稍后重试');
+        setSettings(previous);
+        setSettingsError(message);
+        throw new Error(message);
+      }
+    },
+    [settings],
+  );
+
+  const updateExportDir = useCallback(
+    async (directory: string): Promise<void> => {
+      const previous = settings;
+      setSettings((current) => ({ ...current, exportDir: directory }));
+      setSettingsError(null);
+      try {
+        await setExportDirectory(directory);
+      } catch (error: unknown) {
+        const message = toChineseError(error, '导出目录保存失败，请稍后重试');
+        setSettings(previous);
+        setSettingsError(message);
+        throw new Error(message);
+      }
+    },
+    [settings],
+  );
+
   const [todos, setTodos] = useState<Todo[]>(initialTodos);
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [links, setLinks] = useState<QuickLink[]>(initialLinks);
@@ -152,8 +236,15 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   }, [todos]);
 
   const value: AppStore = {
-    user,
-    renameUser: (name) => setUser({ name }),
+    user: { name: settings.name, avatarPath: settings.avatarPath },
+    renameUser,
+    theme: settings.theme,
+    setTheme: updateTheme,
+    exportDir: settings.exportDir,
+    dataDir: settings.dataDir,
+    settingsLoading,
+    settingsError,
+    setExportDir: updateExportDir,
     todos,
     addTodo: (title) =>
       setTodos((prev) => [{ id: nextId++, title, done: false, completedAt: null, createdAt: now() }, ...prev]),
@@ -184,6 +275,24 @@ export function useStore(): AppStore {
   const ctx = useContext(StoreContext);
   if (!ctx) throw new Error('useStore 必须在 AppStoreProvider 内使用');
   return ctx;
+}
+
+/** 读取并应用当前状态中的主题；设置写入由 AppStoreProvider 负责。 */
+export function useTheme(): [ThemeSetting, (setting: ThemeSetting) => Promise<void>] {
+  const { theme, setTheme } = useStore();
+
+  useEffect(() => {
+    const apply = () => {
+      document.documentElement.dataset.theme = resolveTheme(theme);
+    };
+    apply();
+    if (theme !== 'system') return;
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    mediaQuery.addEventListener('change', apply);
+    return () => mediaQuery.removeEventListener('change', apply);
+  }, [theme]);
+
+  return [theme, setTheme];
 }
 
 export const hostOf = (target: string): string => {
