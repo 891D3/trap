@@ -28,6 +28,9 @@ data/
 *.pem
 secrets/
 
+# mygo 运行时缓存
+.mygo/
+
 # 编辑器
 .idea/
 .vscode/
