@@ -235,7 +235,8 @@ func (AppService) OpenDataDir(ctx) error
 - 2026-10-13：T2 数据层完成（分支 `feature/m0-data-layer`）：迁移机制 + 四表 + `internal/store` + AppService 设置读写 + Go 单测全绿；用户已确认接受迁移 SQL 位于 `internal/store/migrations/`（go:embed 无法引包外目录）。
 - 2026-10-13：T3.1 设置真实接入完成（分支 `feature/m0-settings-integration`）：设置初始化、持久化、settings.changed 同步、中文错误提示与导出目录手动保存已接入；真实 macOS WKWebView E2E 已通过并提交。
 - 2026-10-14：T4 待办真实接入完成（分支 `feature/m0-todo`）：TodoService、todo.changed、SQLite 持久化、前端状态接入与双窗口真实 WKWebView E2E 已通过并提交（1a19a25）。
-- 2026-10-14：T5 信息记录完成（分支 `feature/m0-notes`）：Milkdown 7.22.3 编辑器、NoteService CRUD/导出、note.changed、2 秒防抖自动保存与双窗口真实 WKWebView E2E 已通过；待用户确认提交。
+- 2026-10-14：T5 信息记录完成（分支 `feature/m0-notes`）：Milkdown 7.22.3 编辑器、NoteService CRUD/导出、note.changed、2 秒防抖自动保存与双窗口真实 WKWebView E2E 已通过并提交（4b81a28）。
+- 2026-10-14：UI 调整完成（分支 `feature/m0-ui-aux-note`，用户指定）：辅助区（日历/便签/消息流）仅看板视图显示，其他视图移除；信息记录改为中间默认大编辑器 + 右侧可收起/展开记录列表（自动打开最近记录）；真实 E2E 已覆盖，待用户确认提交。
 
 ## 9. 脚手架与目录约定（拟定）
 

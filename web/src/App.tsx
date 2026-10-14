@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { IconDashboard } from './components/icons';
 import { Auxiliary } from './panels/Auxiliary';
 import { MainArea } from './panels/MainArea';
 import { Sidebar } from './panels/Sidebar';
@@ -51,28 +50,23 @@ export function App() {
         onToggleCollapsed={() => setCollapsed((c) => !c)}
       />
 
+      {/* 辅助区（日历/便签/消息流）仅在看板视图出现；其他视图只保留主区域。 */}
       <MainArea
         meta={VIEW_META[view] ?? VIEW_META.todo}
         doneToday={doneToday}
         showStat={view === 'todo'}
-        showAuxToggle={narrow}
+        showAuxToggle={narrow && view === 'dashboard'}
         auxOpen={auxOpen}
         onToggleAux={() => setAuxOpen((o) => !o)}
       >
-        {view === 'dashboard' && (
-          <div className="aux-placeholder" style={{ marginTop: 24 }}>
-            <IconDashboard />
-            <span>看板 · M2 开放</span>
-          </div>
-        )}
         {view === 'todo' && <TodoView />}
         {view === 'note' && <NoteView />}
         {view === 'link' && <LinkView />}
         {view === 'settings' && <SettingsView />}
       </MainArea>
 
-      {!narrow && <Auxiliary />}
-      {narrow && (
+      {!narrow && view === 'dashboard' && <Auxiliary />}
+      {narrow && view === 'dashboard' && (
         <>
           {auxOpen && <div className="overlay" style={{ alignItems: 'stretch', justifyContent: 'flex-end' }} onClick={() => setAuxOpen(false)} />}
           {auxOpen && <Auxiliary />}

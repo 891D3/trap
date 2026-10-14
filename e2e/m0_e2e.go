@@ -108,6 +108,12 @@ func runSettingsWebViewE2E() error {
 						mygo.App.Quit()
 						return
 					}
+					// 布局约定：辅助区仅看板可见（用户确认的 UI 调整）。
+					if err := runLayoutFlow(window.Page(), url); err != nil {
+						flowDone <- err
+						mygo.App.Quit()
+						return
+					}
 					if err := runSettingsFlow(window.Page(), secondPage, url, exportDir); err != nil {
 						flowDone <- err
 						mygo.App.Quit()
@@ -313,6 +319,32 @@ func runTodoFlow(page, syncPage *mygo.Page, url string) error {
 	return nil
 }
 
+// runLayoutFlow 验证布局约定：辅助区（.aux）仅看板可见，其他视图无辅助区；
+// 看板视图不再有「看板 · M2 开放」中间占位。
+func runLayoutFlow(page *mygo.Page, url string) error {
+	// 看板：辅助区可见，且中间占位已移除。
+	if err := loadPageDocument(page, uniquePageURL(url)+"&e2eView=dashboard"); err != nil {
+		return fmt.Errorf("布局检查: 加载看板: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.aux') !== null`, 10*time.Second); err != nil {
+		return fmt.Errorf("看板视图缺少辅助区: %w", err)
+	}
+	if ok, err := mygo.EvalAs[bool](page, `document.body.innerText.includes('看板 · M2 开放') === false`); err != nil || !ok {
+		return fmt.Errorf("看板视图仍残留中间占位（err=%v, ok=%v）", err, ok)
+	}
+	// 待办：无辅助区。
+	if err := loadPageDocument(page, uniquePageURL(url)+"&e2eView=todo"); err != nil {
+		return fmt.Errorf("布局检查: 加载待办: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.todo-input') !== null`, 10*time.Second); err != nil {
+		return fmt.Errorf("布局检查: 等待待办页: %w", err)
+	}
+	if ok, err := mygo.EvalAs[bool](page, `document.querySelector('.aux') === null`); err != nil || !ok {
+		return fmt.Errorf("待办视图不应显示辅助区（err=%v, ok=%v）", err, ok)
+	}
+	return nil
+}
+
 func runNoteFlow(page, syncPage *mygo.Page, url, exportDir string, notes *service.NoteService) error {
 	if err := reloadToNotes(page, url); err != nil {
 		return fmt.Errorf("重载主窗口到信息记录: %w", err)
@@ -326,6 +358,19 @@ func runNoteFlow(page, syncPage *mygo.Page, url, exportDir string, notes *servic
 	}
 	if err := waitFor(page, `document.querySelector('input[aria-label="记录标题"]') !== null && document.querySelector('[contenteditable="true"]') !== null`, 15*time.Second); err != nil {
 		return fmt.Errorf("等待 Milkdown 编辑器: %w", err)
+	}
+	// 布局约定：记录列表可收起/展开；收起后编辑器仍在、卡片消失。
+	if err := clickText(page, "收起列表"); err != nil {
+		return fmt.Errorf("收起记录列表: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.note-card') === null && document.querySelector('.note-editor-panel') !== null`, 5*time.Second); err != nil {
+		return fmt.Errorf("收起列表后编辑器状态异常: %w", err)
+	}
+	if err := clickText(page, "展开列表"); err != nil {
+		return fmt.Errorf("展开记录列表: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.note-card') !== null`, 5*time.Second); err != nil {
+		return fmt.Errorf("展开列表后卡片未恢复: %w", err)
 	}
 	if err := setInputAndBlur(page, `input[aria-label="记录标题"]`, "E2E 记录"); err != nil {
 		return fmt.Errorf("填写记录标题: %w", err)
