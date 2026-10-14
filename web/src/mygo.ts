@@ -18,6 +18,30 @@ export interface Settings {
   dataDir?: string;
 }
 
+/** Todo 是一条待办的领域模型。时间是 UTC RFC3339 文本（AGENTS.md §4.1）。 */
+export interface Todo {
+  id: number;
+  title: string;
+  done: boolean;
+  createdAt: string;
+  /** NULL = 未完成 */
+  completedAt?: string;
+  updatedAt: string;
+}
+
+/** TodoChangeAction 表示待办变更类型。 */
+export type TodoChangeAction = "added" | "updated" | "deleted";
+
+/**
+ * TodoChangedPayload 是 todo.changed 事件载荷。
+ * 删除时 Todo 为空，由 TodoID 标识受影响记录；其他动作携带完整 Todo。
+ */
+export interface TodoChangedPayload {
+  action: TodoChangeAction;
+  todo?: Todo;
+  todoId?: number;
+}
+
 // ---- Services ----
 
 /**
@@ -50,6 +74,31 @@ export const AppService = {
   },
 } as const;
 
+/**
+ * TodoService 暴露待办 CRUD typed IPC。
+ *
+ * store 通过包级 AttachTodoStore 注入，避免把内部数据库句柄作为导出方法
+ * 暴露给前端（同 T3.1 的 AttachStore 设计）。
+ */
+export const TodoService = {
+  /** Add 新增待办并广播 added 事件。 */
+  add(title: string): Promise<Todo> {
+    return call("TodoService.Add", title);
+  },
+  /** Delete 删除待办并广播 deleted 事件。 */
+  delete(id: number): Promise<void> {
+    return call("TodoService.Delete", id);
+  },
+  /** List 列出全部待办。 */
+  list(): Promise<Todo[]> {
+    return call("TodoService.List");
+  },
+  /** SetDone 设置完成/未完成状态并广播 updated 事件。 */
+  setDone(id: number, done: boolean): Promise<Todo> {
+    return call("TodoService.SetDone", id, done);
+  },
+} as const;
+
 // ---- Events ----
 
 /** Events sent by the Go side. Subscribe with `events.name.on(listener)`. */
@@ -59,4 +108,6 @@ export const events = {
    * Go 侧在每次设置成功写入后 Broadcast；前端据此刷新侧栏姓名等展示。
    */
   settingsChanged: event<Settings>("settings.changed"),
+  /** TodoChanged 在待办成功写入后广播到所有 WebView。 */
+  todoChanged: event<TodoChangedPayload>("todo.changed"),
 } as const;

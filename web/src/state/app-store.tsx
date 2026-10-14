@@ -18,19 +18,14 @@ import {
   type AppSettings,
   type ThemeSetting,
 } from '../api/app-settings';
+import { listTodos, createTodo, updateTodoDone, removeTodo, type Todo } from '../api/todos';
 import { subscribeSettingsChanged } from '../realtime/settings-events';
+import { subscribeTodoChanged } from '../realtime/todo-events';
 
 export type { ThemeSetting } from '../api/app-settings';
+export type { Todo } from '../api/todos';
 
 /* ---------- 实体类型（T2 与 Go 侧对齐） ---------- */
-
-export type Todo = {
-  id: number;
-  title: string;
-  done: boolean;
-  completedAt: string | null;
-  createdAt: string;
-};
 
 export type Note = {
   id: number;
@@ -55,12 +50,6 @@ export type ViewId = 'dashboard' | 'todo' | 'note' | 'link' | 'settings';
 const now = () => new Date().toISOString();
 
 let nextId = 100;
-
-const initialTodos: Todo[] = [
-  { id: 1, title: '阅读 mygo bindings 文档', done: false, completedAt: null, createdAt: now() },
-  { id: 2, title: '整理上周会议纪要', done: true, completedAt: now(), createdAt: now() },
-  { id: 3, title: '给 BRD 补充 F5 项目工作细节', done: false, completedAt: null, createdAt: now() },
-];
 
 const initialNotes: Note[] = [
   {
@@ -114,9 +103,11 @@ type AppStore = {
   settingsError: string | null;
   setExportDir: (directory: string) => Promise<void>;
   todos: Todo[];
-  addTodo: (title: string) => void;
-  setTodoDone: (id: number, done: boolean) => void;
-  deleteTodo: (id: number) => void;
+  todosLoading: boolean;
+  todosError: string | null;
+  addTodo: (title: string) => Promise<void>;
+  setTodoDone: (id: number, done: boolean) => Promise<void>;
+  deleteTodo: (id: number) => Promise<void>;
   notes: Note[];
   addNote: () => void;
   setNoteArchived: (id: number, archived: boolean) => void;
@@ -225,9 +216,74 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     [settings],
   );
 
-  const [todos, setTodos] = useState<Todo[]>(initialTodos);
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [todosLoading, setTodosLoading] = useState(true);
+  const [todosError, setTodosError] = useState<string | null>(null);
   const [notes, setNotes] = useState<Note[]>(initialNotes);
   const [links, setLinks] = useState<QuickLink[]>(initialLinks);
+
+  const loadTodos = useCallback(async (showLoading: boolean): Promise<void> => {
+    if (showLoading) setTodosLoading(true);
+    try {
+      setTodos(await listTodos());
+      setTodosError(null);
+    } catch (error: unknown) {
+      setTodosError(toChineseError(error, '待办加载失败，请稍后重试'));
+    } finally {
+      if (showLoading) setTodosLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeTodoChanged(() => {
+      // 事件只表示发生变化，列表以 Go List 返回的权威数据为准。
+      void loadTodos(false);
+    });
+    void loadTodos(true);
+    return unsubscribe;
+  }, [loadTodos]);
+
+  const addTodo = useCallback(async (title: string): Promise<void> => {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      const error = new Error('待办内容不能为空');
+      setTodosError(error.message);
+      throw error;
+    }
+    setTodosError(null);
+    try {
+      const created = await createTodo(trimmedTitle);
+      setTodos((current) => [...current.filter((todo) => todo.id !== created.id), created]);
+    } catch (error: unknown) {
+      const message = toChineseError(error, '待办添加失败，请稍后重试');
+      setTodosError(message);
+      throw new Error(message);
+    }
+  }, []);
+
+  const setTodoDone = useCallback(async (id: number, done: boolean): Promise<void> => {
+    setTodosError(null);
+    try {
+      const updated = await updateTodoDone(id, done);
+      setTodos((current) => current.map((todo) => (todo.id === updated.id ? updated : todo)));
+    } catch (error: unknown) {
+      const message = toChineseError(error, '待办状态保存失败，请稍后重试');
+      setTodosError(message);
+      throw new Error(message);
+    }
+  }, []);
+
+  const deleteTodo = useCallback(async (id: number): Promise<void> => {
+    setTodosError(null);
+    try {
+      await removeTodo(id);
+      setTodos((current) => current.filter((todo) => todo.id !== id));
+    } catch (error: unknown) {
+      const message = toChineseError(error, '待办删除失败，请稍后重试');
+      setTodosError(message);
+      throw new Error(message);
+    }
+  }, []);
 
   const doneToday = useMemo(() => {
     const start = new Date();
@@ -246,13 +302,11 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     settingsError,
     setExportDir: updateExportDir,
     todos,
-    addTodo: (title) =>
-      setTodos((prev) => [{ id: nextId++, title, done: false, completedAt: null, createdAt: now() }, ...prev]),
-    setTodoDone: (id, done) =>
-      setTodos((prev) =>
-        prev.map((t) => (t.id === id ? { ...t, done, completedAt: done ? now() : null } : t)),
-      ),
-    deleteTodo: (id) => setTodos((prev) => prev.filter((t) => t.id !== id)),
+    todosLoading,
+    todosError,
+    addTodo,
+    setTodoDone,
+    deleteTodo,
     notes,
     addNote: () =>
       setNotes((prev) => [{ id: nextId++, title: '未命名记录', content: '', archived: false, updatedAt: now() }, ...prev]),

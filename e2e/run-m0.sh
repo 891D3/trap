@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 启动独立 Vite 服务，再运行真实 macOS WKWebView E2E。
+# 启动独立 Vite 服务，再运行真实 macOS WKWebView M0 E2E。
 # 不使用 mygo --web：SQLite 插件在 Go WASM 中不支持文件/内存操作；
 # 本脚本由 Go E2E 在原生 mygo WebView 内驱动页面与 typed IPC。
 set -euo pipefail
@@ -28,7 +28,7 @@ for _ in $(seq 1 100); do
 done
 
 if ! curl -fsS "$URL" >/dev/null 2>&1; then
-  echo "Vite E2E 服务未启动，日志：$LOG_FILE" >&2
+  echo "Vite M0 E2E 服务未启动，日志：$LOG_FILE" >&2
   cat "$LOG_FILE" >&2
   exit 1
 fi

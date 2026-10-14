@@ -1,6 +1,6 @@
 //go:build e2e
 
-// settings_test.go 是真实 mygo WebView E2E，而非 store/service 单测。
+// m0_e2e.go 是真实 mygo WebView E2E，而非 store/service 单测。
 // 测试进程会启动真实 macOS WebView，页面通过 generated client 调用绑定的
 // AppService，Go 侧使用临时 SQLite 文件；每个 UI 操作都经过真实 IPC。
 package main
@@ -15,6 +15,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/891D3/trap/internal/service"
@@ -41,6 +42,7 @@ func runSettingsWebViewE2E() error {
 	if err := waitHTTP(url, 20*time.Second); err != nil {
 		return fmt.Errorf("Vite 开发服务器未就绪: %w", err)
 	}
+	url = fmt.Sprintf("%s?e2e=%d", url, time.Now().UnixNano())
 
 	dataDir, err := os.MkdirTemp("", "trap-e2e-data-")
 	if err != nil {
@@ -56,14 +58,20 @@ func runSettingsWebViewE2E() error {
 	if err != nil {
 		return fmt.Errorf("读取 E2E 初始设置: %w", err)
 	}
-	log.Printf("E2E 初始 SQLite settings = %#v", initialSettings)
+	if len(initialSettings) != 0 {
+		return fmt.Errorf("E2E 临时 SQLite 非空: %#v", initialSettings)
+	}
 
 	appService := &service.AppService{}
+	todoService := &service.TodoService{}
 	service.AttachStore(appService, db, dataDir)
-	mygo.Bind(appService)
+	service.AttachTodoStore(todoService, db)
+	mygo.Bind(appService, todoService)
 
 	flowDone := make(chan error, 1)
 	secondPageReady := make(chan *mygo.Page, 1)
+	var firstDOMReady sync.Once
+	var secondDOMReady sync.Once
 	mygo.App.WhenReady(func() {
 		window := mygo.NewWindow(mygo.WindowOptions{
 			Title:  "Trap E2E",
@@ -78,14 +86,23 @@ func runSettingsWebViewE2E() error {
 			URL:    url,
 		})
 		secondWindow.Page().OnDOMReady(func() {
-			secondPageReady <- secondWindow.Page()
+			secondDOMReady.Do(func() {
+				secondPageReady <- secondWindow.Page()
+			})
 		})
 		window.Page().OnDOMReady(func() {
-			go func() {
-				secondPage := <-secondPageReady
-				flowDone <- runSettingsFlow(window.Page(), secondPage, url)
-				mygo.App.Quit()
-			}()
+			firstDOMReady.Do(func() {
+				go func() {
+					secondPage := <-secondPageReady
+					if err := runSettingsFlow(window.Page(), secondPage, url); err != nil {
+						flowDone <- err
+						mygo.App.Quit()
+						return
+					}
+					flowDone <- runTodoFlow(window.Page(), secondPage, url)
+					mygo.App.Quit()
+				}()
+			})
 		})
 	})
 
@@ -110,16 +127,17 @@ func runSettingsWebViewE2E() error {
 }
 
 func runSettingsFlow(page, syncPage *mygo.Page, url string) error {
+	if err := reloadAndWait(page, url); err != nil {
+		return fmt.Errorf("初始化主窗口设置页: %w", err)
+	}
+	if err := reloadAndWait(syncPage, url); err != nil {
+		return fmt.Errorf("初始化同步窗口设置页: %w", err)
+	}
 	if err := waitFor(page, `document.querySelector('button.side-item') !== null`, 15*time.Second); err != nil {
 		return fmt.Errorf("等待主界面: %w", err)
 	}
-	if ok, err := mygo.EvalAs[bool](page, `(() => {
-		const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === '设置');
-		if (!button) return false;
-		button.click();
-		return true;
-	})()`); err != nil || !ok {
-		return fmt.Errorf("点击设置导航失败: %v", err)
+	if err := clickSettings(page); err != nil {
+		return fmt.Errorf("点击设置导航失败: %w", err)
 	}
 	if err := waitFor(page, `document.querySelector('input[aria-label="数据目录"]') !== null`, 10*time.Second); err != nil {
 		return fmt.Errorf("等待设置页: %w", err)
@@ -127,7 +145,8 @@ func runSettingsFlow(page, syncPage *mygo.Page, url string) error {
 
 	name, err := mygo.EvalAs[string](page, `document.querySelector('.side-user-name')?.textContent ?? ''`)
 	if err != nil || name != "Eric" {
-		return fmt.Errorf("首次设置姓名 = %q，期望 Eric，错误=%v", name, err)
+		current, _ := mygo.EvalAs[string](page, `JSON.stringify({name: document.querySelector('.side-user-name')?.textContent ?? '', input: document.querySelector('input')?.value ?? '', dataDir: document.querySelector('input[aria-label="数据目录"]')?.value ?? ''})`)
+		return fmt.Errorf("首次设置姓名 = %q，期望 Eric，错误=%v；当前状态=%s", name, err, current)
 	}
 	dataDir, err := mygo.EvalAs[string](page, `document.querySelector('input[aria-label="数据目录"]')?.value ?? ''`)
 	if err != nil || !strings.Contains(dataDir, "trap-e2e-data") {
@@ -192,6 +211,134 @@ func runSettingsFlow(page, syncPage *mygo.Page, url string) error {
 	return nil
 }
 
+func runTodoFlow(page, syncPage *mygo.Page, url string) error {
+	if err := reloadToTodo(page, url); err != nil {
+		return fmt.Errorf("重载主窗口到待办页: %w", err)
+	}
+	if err := reloadToTodo(syncPage, url); err != nil {
+		return fmt.Errorf("重载同步窗口到待办页: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.todo-input')?.disabled === false`, 10*time.Second); err != nil {
+		return fmt.Errorf("待办页未加载完成: %w", err)
+	}
+	if err := waitFor(syncPage, `document.querySelector('.todo-input')?.disabled === false`, 10*time.Second); err != nil {
+		return fmt.Errorf("同步窗口待办页未加载完成: %w", err)
+	}
+
+	if err := setInputAndPressEnter(page, "E2E 待办"); err != nil {
+		return fmt.Errorf("添加待办: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.todo-text')?.textContent === 'E2E 待办'`, 10*time.Second); err != nil {
+		return fmt.Errorf("主窗口未显示新增待办: %w", err)
+	}
+	if err := waitFor(syncPage, `document.querySelector('.todo-text')?.textContent === 'E2E 待办'`, 10*time.Second); err != nil {
+		return fmt.Errorf("todo.changed 未同步第二窗口新增待办: %w", err)
+	}
+
+	if err := reloadToTodo(page, url); err != nil {
+		return fmt.Errorf("添加后重载待办: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.todo-text')?.textContent === 'E2E 待办'`, 10*time.Second); err != nil {
+		return fmt.Errorf("待办重载后未持久化: %w", err)
+	}
+
+	if err := clickTodoCheckbox(page, "完成 E2E 待办"); err != nil {
+		return fmt.Errorf("完成待办: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('button[aria-label="恢复 E2E 待办"]')?.getAttribute('aria-checked') === 'true'`, 10*time.Second); err != nil {
+		return fmt.Errorf("主窗口完成状态未更新: %w", err)
+	}
+	if err := waitFor(syncPage, `document.querySelector('button[aria-label="恢复 E2E 待办"]')?.getAttribute('aria-checked') === 'true'`, 10*time.Second); err != nil {
+		return fmt.Errorf("todo.changed 未同步第二窗口完成状态: %w", err)
+	}
+
+	if err := clickTodoCheckbox(page, "恢复 E2E 待办"); err != nil {
+		return fmt.Errorf("取消完成待办: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('button[aria-label="完成 E2E 待办"]')?.getAttribute('aria-checked') === 'false'`, 10*time.Second); err != nil {
+		return fmt.Errorf("取消完成状态未更新: %w", err)
+	}
+
+	if _, err := page.Eval(`(() => {
+		const button = document.querySelector('button[aria-label="删除 E2E 待办"]');
+		if (!button) throw new Error('delete button not found');
+		button.click();
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("打开删除确认: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('[role="dialog"]')?.textContent?.includes('确定删除') === true`, 5*time.Second); err != nil {
+		return fmt.Errorf("删除确认弹窗未出现: %w", err)
+	}
+	if _, err := page.Eval(`(() => {
+		const button = [...document.querySelectorAll('[role="dialog"] button')].find((item) => item.textContent?.trim() === '删除');
+		if (!button) throw new Error('confirm delete button not found');
+		button.click();
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("确认删除: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.todo-text') === null`, 10*time.Second); err != nil {
+		return fmt.Errorf("删除后主窗口仍有待办: %w", err)
+	}
+	if err := waitFor(syncPage, `document.querySelector('.todo-text') === null`, 10*time.Second); err != nil {
+		return fmt.Errorf("删除事件未同步第二窗口: %w", err)
+	}
+
+	if err := setInputAndPressEnter(page, ""); err != nil {
+		return fmt.Errorf("提交空待办: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('[role="alert"]')?.textContent?.includes('待办内容不能为空') === true`, 5*time.Second); err != nil {
+		return fmt.Errorf("空待办中文错误提示未出现: %w", err)
+	}
+	return nil
+}
+
+func clickSettings(page *mygo.Page) error {
+	time.Sleep(500 * time.Millisecond)
+	_, err := page.Eval(`(() => {
+		const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === '设置');
+		if (!button) throw new Error('settings button not found');
+		button.focus();
+		button.click();
+		return true;
+	})()`)
+	return err
+}
+
+func reloadToTodo(page *mygo.Page, url string) error {
+	if err := page.LoadURL(url); err != nil {
+		return err
+	}
+	return waitFor(page, `document.querySelector('.todo-input') !== null`, 15*time.Second)
+}
+
+func clickTodoCheckbox(page *mygo.Page, label string) error {
+	_, err := page.Eval(fmt.Sprintf(`(() => {
+		const button = document.querySelector('button[aria-label=%q]');
+		if (!button) throw new Error('checkbox not found: ' + %q);
+		button.click();
+		return true;
+	})()`, label, label))
+	return err
+}
+
+func setInputAndPressEnter(page *mygo.Page, value string) error {
+	quoted := strconv.Quote(value)
+	_, err := page.Eval(fmt.Sprintf(`(() => {
+		const input = document.querySelector('.todo-input');
+		if (!input) throw new Error('todo input not found');
+		const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+		if (!setter) throw new Error('input value setter not found');
+		input.focus();
+		setter.call(input, %s);
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		return true;
+	})()`, quoted))
+	return err
+}
+
 func setInputAndBlur(page *mygo.Page, selector, value string) error {
 	quoted := strconv.Quote(value)
 	_, err := page.Eval(fmt.Sprintf(`(() => {
@@ -213,18 +360,17 @@ func reloadAndWait(page *mygo.Page, url string) error {
 	if err := page.LoadURL(url); err != nil {
 		return err
 	}
-	if err := waitFor(page, `document.querySelector('button.side-item') !== null`, 15*time.Second); err != nil {
+	if err := waitFor(page, `document.querySelector('.todo-input') !== null`, 15*time.Second); err != nil {
 		return err
 	}
-	if ok, err := mygo.EvalAs[bool](page, `(() => {
-		const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === '设置');
-		if (!button) return false;
-		button.click();
-		return true;
-	})()`); err != nil || !ok {
-		return fmt.Errorf("重载后点击设置导航失败: %v", err)
+	if err := clickSettings(page); err != nil {
+		return fmt.Errorf("重载后点击设置导航失败: %w", err)
 	}
-	return waitFor(page, `document.querySelector('input[aria-label="数据目录"]') !== null`, 10*time.Second)
+	if err := waitFor(page, `document.querySelector('input[aria-label="数据目录"]') !== null`, 10*time.Second); err != nil {
+		current, _ := mygo.EvalAs[string](page, `JSON.stringify({body: document.body.innerText, buttons: [...document.querySelectorAll('button')].map((item) => ({text: item.textContent?.trim(), className: item.className})), inputs: [...document.querySelectorAll('input')].map((item) => item.getAttribute('aria-label'))})`)
+		return fmt.Errorf("等待重载设置页: %w；当前状态=%s", err, current)
+	}
+	return nil
 }
 
 func waitFor(page *mygo.Page, expression string, timeout time.Duration) error {
