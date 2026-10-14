@@ -33,7 +33,11 @@ export function App() {
   const { doneToday } = useStore();
   useTheme(); // 解析主题设置并写入 <html data-theme>
 
-  const [view, setView] = useState<ViewId>('todo');
+  const [view, setView] = useState<ViewId>(() => {
+    // 支持深链接初始视图；正常启动没有参数时仍默认进入待办。
+    const requested = new URLSearchParams(window.location.search).get('e2eView');
+    return requested && requested in VIEW_META ? (requested as ViewId) : 'todo';
+  });
   const [collapsed, setCollapsed] = useState(false);
   const [auxOpen, setAuxOpen] = useState(false);
   const narrow = useNarrow();

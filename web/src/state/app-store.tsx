@@ -19,21 +19,26 @@ import {
   type ThemeSetting,
 } from '../api/app-settings';
 import { listTodos, createTodo, updateTodoDone, removeTodo, type Todo } from '../api/todos';
+import {
+  createNote,
+  deleteNote as deleteNoteAPI,
+  exportNotes,
+  getNote,
+  listNotes,
+  saveNote as saveNoteAPI,
+  setNoteArchived,
+  type Note,
+  type NoteSummary,
+} from '../api/notes';
 import { subscribeSettingsChanged } from '../realtime/settings-events';
 import { subscribeTodoChanged } from '../realtime/todo-events';
+import { subscribeNoteChanged } from '../realtime/note-events';
 
 export type { ThemeSetting } from '../api/app-settings';
 export type { Todo } from '../api/todos';
+export type { Note, NoteSummary } from '../api/notes';
 
 /* ---------- 实体类型（T2 与 Go 侧对齐） ---------- */
-
-export type Note = {
-  id: number;
-  title: string;
-  content: string;
-  archived: boolean;
-  updatedAt: string;
-};
 
 export type QuickLink = {
   id: number;
@@ -50,23 +55,6 @@ export type ViewId = 'dashboard' | 'todo' | 'note' | 'link' | 'settings';
 const now = () => new Date().toISOString();
 
 let nextId = 100;
-
-const initialNotes: Note[] = [
-  {
-    id: 10,
-    title: 'Trap 架构想法',
-    content: '工作流引擎与 AI 助手在引擎层汇合，Agent 可触发/编排工作流。\n\n- typed IPC 已验证\n- Milkdown T5 接入',
-    archived: false,
-    updatedAt: now(),
-  },
-  {
-    id: 11,
-    title: '灵感：看板指标',
-    content: '待办完成趋势（日/周）、时间投入分布、项目进度总览。',
-    archived: true,
-    updatedAt: now(),
-  },
-];
 
 const initialLinks: QuickLink[] = [
   { id: 20, name: 'GitHub', target: 'https://github.com', kind: 'url', groupName: '开发' },
@@ -108,10 +96,15 @@ type AppStore = {
   addTodo: (title: string) => Promise<void>;
   setTodoDone: (id: number, done: boolean) => Promise<void>;
   deleteTodo: (id: number) => Promise<void>;
-  notes: Note[];
-  addNote: () => void;
-  setNoteArchived: (id: number, archived: boolean) => void;
-  deleteNote: (id: number) => void;
+  notes: NoteSummary[];
+  notesLoading: boolean;
+  notesError: string | null;
+  addNote: (title?: string) => Promise<Note>;
+  getNote: (id: number) => Promise<Note>;
+  saveNote: (id: number, title: string, content: string) => Promise<Note>;
+  setNoteArchived: (id: number, archived: boolean) => Promise<void>;
+  deleteNote: (id: number) => Promise<void>;
+  exportNote: (id: number) => Promise<string>;
   links: QuickLink[];
   addLink: (name: string, target: string, groupName: string) => void;
   deleteLink: (id: number) => void;
@@ -219,7 +212,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [todos, setTodos] = useState<Todo[]>([]);
   const [todosLoading, setTodosLoading] = useState(true);
   const [todosError, setTodosError] = useState<string | null>(null);
-  const [notes, setNotes] = useState<Note[]>(initialNotes);
+  const [notes, setNotes] = useState<NoteSummary[]>([]);
+  const [notesLoading, setNotesLoading] = useState(true);
+  const [notesError, setNotesError] = useState<string | null>(null);
   const [links, setLinks] = useState<QuickLink[]>(initialLinks);
 
   const loadTodos = useCallback(async (showLoading: boolean): Promise<void> => {
@@ -285,6 +280,107 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const loadNotes = useCallback(async (showLoading: boolean): Promise<void> => {
+    if (showLoading) setNotesLoading(true);
+    try {
+      setNotes(await listNotes(true));
+      setNotesError(null);
+    } catch (error: unknown) {
+      setNotesError(toChineseError(error, '信息记录加载失败，请稍后重试'));
+    } finally {
+      if (showLoading) setNotesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeNoteChanged(() => {
+      void loadNotes(false);
+    });
+    void loadNotes(true);
+    return unsubscribe;
+  }, [loadNotes]);
+
+  const addNote = useCallback(async (title = '未命名记录'): Promise<Note> => {
+    setNotesError(null);
+    try {
+      const note = await createNote(title);
+      setNotes((current) => [
+        { id: note.id, title: note.title, archived: note.archived, createdAt: note.createdAt, updatedAt: note.updatedAt },
+        ...current.filter((item) => item.id !== note.id),
+      ]);
+      return note;
+    } catch (error: unknown) {
+      const message = toChineseError(error, '信息记录创建失败，请稍后重试');
+      setNotesError(message);
+      throw new Error(message);
+    }
+  }, []);
+
+  const getNoteAction = useCallback(async (id: number): Promise<Note> => {
+    try {
+      return await getNote(id);
+    } catch (error: unknown) {
+      const message = toChineseError(error, '信息记录读取失败，请稍后重试');
+      setNotesError(message);
+      throw new Error(message);
+    }
+  }, []);
+
+  const saveNoteAction = useCallback(async (id: number, title: string, content: string): Promise<Note> => {
+    setNotesError(null);
+    try {
+      const note = await saveNoteAPI(id, title, content);
+      setNotes((current) => current.map((item) => item.id === note.id
+        ? { id: note.id, title: note.title, archived: note.archived, createdAt: note.createdAt, updatedAt: note.updatedAt }
+        : item));
+      return note;
+    } catch (error: unknown) {
+      const message = toChineseError(error, '信息记录保存失败，请稍后重试');
+      setNotesError(message);
+      throw new Error(message);
+    }
+  }, []);
+
+  const setNoteArchivedAction = useCallback(async (id: number, archived: boolean): Promise<void> => {
+    setNotesError(null);
+    try {
+      const note = await setNoteArchived(id, archived);
+      setNotes((current) => current.map((item) => item.id === note.id
+        ? { id: note.id, title: note.title, archived: note.archived, createdAt: note.createdAt, updatedAt: note.updatedAt }
+        : item));
+    } catch (error: unknown) {
+      const message = toChineseError(error, '信息记录归档失败，请稍后重试');
+      setNotesError(message);
+      throw new Error(message);
+    }
+  }, []);
+
+  const deleteNoteAction = useCallback(async (id: number): Promise<void> => {
+    setNotesError(null);
+    try {
+      await deleteNoteAPI(id);
+      setNotes((current) => current.filter((item) => item.id !== id));
+    } catch (error: unknown) {
+      const message = toChineseError(error, '信息记录删除失败，请稍后重试');
+      setNotesError(message);
+      throw new Error(message);
+    }
+  }, []);
+
+  const exportNoteAction = useCallback(async (id: number): Promise<string> => {
+    setNotesError(null);
+    try {
+      const result = await exportNotes([id]);
+      const file = result.files[0];
+      if (!file) throw new Error('导出未生成文件');
+      return file;
+    } catch (error: unknown) {
+      const message = toChineseError(error, '信息记录导出失败，请稍后重试');
+      setNotesError(message);
+      throw new Error(message);
+    }
+  }, []);
+
   const doneToday = useMemo(() => {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
@@ -308,11 +404,14 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     setTodoDone,
     deleteTodo,
     notes,
-    addNote: () =>
-      setNotes((prev) => [{ id: nextId++, title: '未命名记录', content: '', archived: false, updatedAt: now() }, ...prev]),
-    setNoteArchived: (id, archived) =>
-      setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, archived, updatedAt: now() } : n))),
-    deleteNote: (id) => setNotes((prev) => prev.filter((n) => n.id !== id)),
+    notesLoading,
+    notesError,
+    addNote,
+    getNote: getNoteAction,
+    saveNote: saveNoteAction,
+    setNoteArchived: setNoteArchivedAction,
+    deleteNote: deleteNoteAction,
+    exportNote: exportNoteAction,
     links,
     addLink: (name, target, groupName) => {
       const kind = /^https?:\/\//i.test(target) ? ('url' as const) : ('path' as const);

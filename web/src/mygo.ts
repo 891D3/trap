@@ -4,6 +4,41 @@ import { call, event } from "mygo-runtime";
 
 // ---- Types ----
 
+/** ExportResult 描述一次或多次 Markdown 导出的结果。 */
+export interface ExportResult {
+  files: string[];
+}
+
+/** Note 是一条信息记录的完整实体。 */
+export interface Note {
+  id: number;
+  title: string;
+  /** GFM markdown 纯文本 */
+  content: string;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** NoteChangeAction 表示信息记录变更类型。 */
+export type NoteChangeAction = "created" | "saved" | "archived" | "deleted";
+
+/** NoteChangedPayload 是 note.changed 事件载荷。 */
+export interface NoteChangedPayload {
+  action: NoteChangeAction;
+  note?: Note;
+  noteId?: number;
+}
+
+/** NoteSummary 是列表视图的摘要：不携带正文，避免大列表全量读 content。 */
+export interface NoteSummary {
+  id: number;
+  title: string;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** Settings 是设置页可见的应用级设置（map 到 settings 表的业务键）。 */
 export interface Settings {
   /** user.name */
@@ -99,6 +134,41 @@ export const TodoService = {
   },
 } as const;
 
+/** NoteService 暴露信息记录 CRUD 与 Markdown 导出 typed IPC。 */
+export const NoteService = {
+  /** Create 创建一条空记录并广播 created。 */
+  create(title: string): Promise<Note> {
+    return call("NoteService.Create", title);
+  },
+  /** Delete 删除记录并广播 deleted。 */
+  delete(id: number): Promise<void> {
+    return call("NoteService.Delete", id);
+  },
+  /**
+   * Export 将指定记录以原文 Markdown 写入 settings.app.export_dir。
+   * 目录不存在时创建；文件名经过清理，禁止标题构造路径穿越。
+   */
+  export(ids: number[]): Promise<ExportResult> {
+    return call("NoteService.Export", ids);
+  },
+  /** Get 读取一条记录的完整标题与 Markdown 正文。 */
+  get(id: number): Promise<Note> {
+    return call("NoteService.Get", id);
+  },
+  /** List 返回记录摘要；includeArchived 控制是否包含已归档记录。 */
+  list(includeArchived: boolean): Promise<NoteSummary[]> {
+    return call("NoteService.List", includeArchived);
+  },
+  /** Save 覆盖标题与 Markdown 正文并广播 saved。 */
+  save(id: number, title: string, content: string): Promise<Note> {
+    return call("NoteService.Save", id, title, content);
+  },
+  /** SetArchived 设置归档状态并广播 archived。 */
+  setArchived(id: number, archived: boolean): Promise<Note> {
+    return call("NoteService.SetArchived", id, archived);
+  },
+} as const;
+
 // ---- Events ----
 
 /** Events sent by the Go side. Subscribe with `events.name.on(listener)`. */
@@ -108,6 +178,8 @@ export const events = {
    * Go 侧在每次设置成功写入后 Broadcast；前端据此刷新侧栏姓名等展示。
    */
   settingsChanged: event<Settings>("settings.changed"),
+  /** NoteChanged 在记录成功写入、归档或删除后广播。 */
+  noteChanged: event<NoteChangedPayload>("note.changed"),
   /** TodoChanged 在待办成功写入后广播到所有 WebView。 */
   todoChanged: event<TodoChangedPayload>("todo.changed"),
 } as const;

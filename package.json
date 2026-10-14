@@ -12,6 +12,9 @@
     "typecheck": "tsc -p web --noEmit"
   },
   "dependencies": {
+    "@milkdown/crepe": "^7.22.3",
+    "@milkdown/kit": "^7.22.3",
+    "@milkdown/react": "^7.22.3",
     "mygo-runtime": "^0.4.8",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

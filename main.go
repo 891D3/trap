@@ -20,7 +20,8 @@ import (
 func main() {
 	app := &service.AppService{}
 	todos := &service.TodoService{}
-	mygo.Bind(app, todos)
+	notes := &service.NoteService{}
+	mygo.Bind(app, todos, notes)
 
 	mygo.App.WhenReady(func() {
 		// 数据库位置：userData 目录下的 trap.db（mygo.PathUserData 首次使用会创建目录）。
@@ -34,6 +35,7 @@ func main() {
 		}
 		service.AttachStore(app, db, userDir)
 		service.AttachTodoStore(todos, db)
+		service.AttachNoteStore(notes, db)
 
 		mygo.NewWindow(mygo.WindowOptions{
 			Title:           "Trap",
