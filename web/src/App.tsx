@@ -2,10 +2,11 @@
 //   侧边导航（216px 可收起 64px）| 主区域列（顶栏 64 + 内容区）| 辅助区（256px 可收起）。
 //   默认视图 = 数据看板（PRD v2.0 拟定决策 1；深链接 e2eView 仍可用）。
 //   <1200px：侧栏自动折叠、辅助区折叠为抽屉（ui-baseline §七）。
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Auxiliary } from './panels/Auxiliary';
 import { MainArea } from './panels/MainArea';
 import { Sidebar } from './panels/Sidebar';
+import { DashboardView } from './panels/views/DashboardView';
 import { LinkView } from './panels/views/LinkView';
 import { NoteView } from './panels/views/NoteView';
 import { SettingsView } from './panels/views/SettingsView';
@@ -32,12 +33,17 @@ function auxEnabled(view: ViewId): boolean {
 
 export function App() {
   useTheme(); // 解析主题设置并写入 <html data-theme>
+  const { view, setView } = useStore();
 
-  const [view, setView] = useState<ViewId>(() => {
-    // 深链接初始视图（E2E 用）；默认 = 数据看板（PRD v2.0 拟定决策 1）。
+  // 深链接初始视图（E2E 用）：仅首次挂载时覆盖 store 默认值（数据看板）。
+  const deepLinkRef = useRef(false);
+  useEffect(() => {
+    if (deepLinkRef.current) return;
+    deepLinkRef.current = true;
     const requested = new URLSearchParams(window.location.search).get('e2eView');
-    return requested && VIEW_IDS.has(requested as ViewId) ? (requested as ViewId) : 'dashboard';
-  });
+    if (requested && VIEW_IDS.has(requested as ViewId)) setView(requested as ViewId);
+  }, [setView]);
+
   const [collapsed, setCollapsed] = useState(false);
   const [auxOpen, setAuxOpen] = useState(false);
   const narrow = useNarrow();
@@ -53,7 +59,7 @@ export function App() {
       />
 
       <MainArea view={view}>
-        {view === 'dashboard' && null /* R4 数据看板视图 */}
+        {view === 'dashboard' && <DashboardView />}
         {view === 'todo' && <TodoView />}
         {view === 'note' && <NoteView />}
         {view === 'link' && <LinkView />}

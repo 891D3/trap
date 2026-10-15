@@ -18,7 +18,8 @@ import {
   type AppSettings,
   type ThemeSetting,
 } from '../api/app-settings';
-import { listTodos, createTodo, updateTodoDone, removeTodo, type Todo } from '../api/todos';
+import { dashboardStats, listTodos, createTodo, updateTodoDone, removeTodo, type Todo } from '../api/todos';
+import type { DashboardStats } from '../mygo';
 import {
   createProject,
   listProjects,
@@ -99,6 +100,11 @@ type AppStore = {
   settingsLoading: boolean;
   settingsError: string | null;
   setExportDir: (directory: string) => Promise<void>;
+  /** 当前视图（v3 默认数据看板；视图切换需要跨组件，R4 起入 store）。 */
+  view: ViewId;
+  setView: (v: ViewId) => void;
+  /** 数据看板聚合（PRD v2.0 §4.2；事件驱动刷新）。 */
+  stats: DashboardStats | null;
   todos: Todo[];
   todosLoading: boolean;
   todosError: string | null;
@@ -229,6 +235,19 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     [settings],
   );
 
+  // 当前视图（默认数据看板 = PRD v2.0 拟定决策 1；深链接仍由 App 初始化读取）。
+  const [view, setView] = useState<ViewId>('dashboard');
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+
+  const loadStats = useCallback(async (): Promise<void> => {
+    try {
+      setStats(await dashboardStats());
+    } catch (error: unknown) {
+      // 看板聚合失败不阻塞视图（KPI 显示零值 + toast 由视图层处理）。
+      console.error('看板聚合加载失败', error);
+    }
+  }, []);
+
   const [todos, setTodos] = useState<Todo[]>([]);
   const [todosLoading, setTodosLoading] = useState(true);
   const [todosError, setTodosError] = useState<string | null>(null);
@@ -253,19 +272,6 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  useEffect(() => {
-    const unsubscribe = subscribeProjectChanged((payload) => {
-      // 与 todo.changed 同策略：列表以 Go List 为准；项目被删除时其关联
-      // 待办的 project_id 已在 Go 侧置空，需要重拉待办同步本地视图。
-      void loadProjects(false);
-      if (payload.action === 'deleted') {
-        void listTodos().then(setTodos).catch(() => undefined);
-        setProjectFilter((current) => (current === payload.projectId ? null : current));
-      }
-    });
-    void loadProjects(true);
-    return unsubscribe;
-  }, [loadProjects]);
 
   const addProjectAction = useCallback(
     async (name: string, color = ''): Promise<void> => {
@@ -325,10 +331,32 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     const unsubscribe = subscribeTodoChanged(() => {
       // 事件只表示发生变化，列表以 Go List 返回的权威数据为准。
       void loadTodos(false);
+      void loadStats();
     });
     void loadTodos(true);
+    void loadStats();
     return unsubscribe;
-  }, [loadTodos]);
+  }, [loadTodos, loadStats]);
+
+  // 记录变化同样影响看板聚合（今日信息时间轴、灵感 KPI）。
+  useEffect(() => {
+    const unsubscribe = subscribeNoteChanged(() => {
+      void loadStats();
+    });
+    return unsubscribe;
+  }, [loadStats]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeProjectChanged((payload) => {
+      void loadProjects(false);
+      void loadStats();
+      if (payload.action === 'deleted') {
+        void listTodos().then(setTodos).catch(() => undefined);
+        setProjectFilter((current) => (current === payload.projectId ? null : current));
+      }
+    });
+    return unsubscribe;
+  }, [loadProjects, loadStats]);
 
   const addTodo = useCallback(async (title: string): Promise<void> => {
     const trimmedTitle = title.trim();
@@ -480,6 +508,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   }, [todos]);
 
   const value: AppStore = {
+    view,
+    setView,
+    stats,
     user: { name: settings.name, avatarPath: settings.avatarPath },
     renameUser,
     theme: settings.theme,
