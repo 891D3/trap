@@ -1,41 +1,19 @@
+// MainArea —— 主区域列（顶栏 + 主内容区）。v3 起顶栏抽到 Topbar 组件，
+// v1 的独立标题说明与「今日完成」统计卡移除（数据看板视图承担该展示，R4）。
 import type { ReactNode } from 'react';
-
-export type ViewMeta = { title: string; desc: string };
+import { Topbar } from './Topbar';
+import type { ViewId } from '../state/app-store';
 
 type MainAreaProps = {
-  meta: ViewMeta;
-  doneToday: number;
-  showStat: boolean;
-  showAuxToggle: boolean;
-  auxOpen: boolean;
-  onToggleAux: () => void;
+  view: ViewId;
   children: ReactNode;
 };
 
-export function MainArea({ meta, doneToday, showStat, showAuxToggle, auxOpen, onToggleAux, children }: MainAreaProps) {
+export function MainArea({ view, children }: MainAreaProps) {
   return (
     <main className="main">
-      <header className="main-header">
-        <div>
-          <h1 className="main-title">{meta.title}</h1>
-          <p className="main-desc">{meta.desc}</p>
-        </div>
-        {showAuxToggle && (
-          <button className="btn" onClick={onToggleAux}>
-            {auxOpen ? '关闭辅助区' : '辅助区'}
-          </button>
-        )}
-      </header>
-
-      {showStat && (
-        <div className="stat-row">
-          <div className="stat-card">
-            <div className="stat-value">{doneToday}</div>
-            <div className="stat-label">今日完成</div>
-          </div>
-        </div>
-      )}
-
+      <Topbar view={view} />
+      {/* 主内容区：底色 --bg，p12/g12（ui-baseline §二）。 */}
       <section className="view">{children}</section>
     </main>
   );

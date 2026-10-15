@@ -20,6 +20,13 @@ import {
 } from '../api/app-settings';
 import { listTodos, createTodo, updateTodoDone, removeTodo, type Todo } from '../api/todos';
 import {
+  createProject,
+  listProjects,
+  removeProject,
+  updateProject,
+  type Project,
+} from '../api/projects';
+import {
   createNote,
   deleteNote as deleteNoteAPI,
   exportNotes,
@@ -33,10 +40,12 @@ import {
 import { subscribeSettingsChanged } from '../realtime/settings-events';
 import { subscribeTodoChanged } from '../realtime/todo-events';
 import { subscribeNoteChanged } from '../realtime/note-events';
+import { subscribeProjectChanged } from '../realtime/project-events';
 
 export type { ThemeSetting } from '../api/app-settings';
 export type { Todo } from '../api/todos';
 export type { Note, NoteSummary } from '../api/notes';
+export type { Project } from '../api/projects';
 
 /* ---------- 实体类型（T2 与 Go 侧对齐） ---------- */
 
@@ -48,7 +57,7 @@ export type QuickLink = {
   groupName: string;
 };
 
-export type ViewId = 'dashboard' | 'todo' | 'note' | 'link' | 'settings';
+export type ViewId = 'dashboard' | 'todo' | 'note' | 'stock' | 'link' | 'settings';
 
 /* ---------- 仍未接入 T4–T6 的 mock 数据 ---------- */
 
@@ -109,6 +118,17 @@ type AppStore = {
   addLink: (name: string, target: string, groupName: string) => void;
   deleteLink: (id: number) => void;
   doneToday: number;
+  /** v2.0：项目列表（含待办计数）与 CRUD。 */
+  projects: Project[];
+  projectsLoading: boolean;
+  projectsError: string | null;
+  addProject: (name: string, color?: string) => Promise<void>;
+  editProject: (id: number, name: string, color: string) => Promise<void>;
+  deleteProject: (id: number) => Promise<void>;
+  /** 按项目过滤（点击侧栏项目进入待办过滤态；null = 不过滤）。 */
+  projectFilter: number | null;
+  openProject: (id: number) => void;
+  clearProjectFilter: () => void;
 };
 
 const StoreContext = createContext<AppStore | null>(null);
@@ -216,6 +236,78 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [notesLoading, setNotesLoading] = useState(true);
   const [notesError, setNotesError] = useState<string | null>(null);
   const [links, setLinks] = useState<QuickLink[]>(initialLinks);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
+  const [projectFilter, setProjectFilter] = useState<number | null>(null);
+
+  const loadProjects = useCallback(async (showLoading: boolean): Promise<void> => {
+    if (showLoading) setProjectsLoading(true);
+    try {
+      setProjects(await listProjects());
+      setProjectsError(null);
+    } catch (error: unknown) {
+      setProjectsError(toChineseError(error, '项目加载失败，请稍后重试'));
+    } finally {
+      if (showLoading) setProjectsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeProjectChanged((payload) => {
+      // 与 todo.changed 同策略：列表以 Go List 为准；项目被删除时其关联
+      // 待办的 project_id 已在 Go 侧置空，需要重拉待办同步本地视图。
+      void loadProjects(false);
+      if (payload.action === 'deleted') {
+        void listTodos().then(setTodos).catch(() => undefined);
+        setProjectFilter((current) => (current === payload.projectId ? null : current));
+      }
+    });
+    void loadProjects(true);
+    return unsubscribe;
+  }, [loadProjects]);
+
+  const addProjectAction = useCallback(
+    async (name: string, color = ''): Promise<void> => {
+      if (!name.trim()) {
+        setProjectsError('项目名称不能为空');
+        throw new Error('项目名称不能为空');
+      }
+      try {
+        const created = await createProject(name, color);
+        setProjects((current) => [...current, created]);
+      } catch (error: unknown) {
+        const message = toChineseError(error, '项目添加失败，请稍后重试');
+        setProjectsError(message);
+        throw new Error(message);
+      }
+    },
+    [],
+  );
+
+  const editProjectAction = useCallback(
+    async (id: number, name: string, color: string): Promise<void> => {
+      try {
+        const sortOrder = projects.find((p) => p.id === id)?.sortOrder ?? 0;
+        const updated = await updateProject(id, name, color, sortOrder);
+        setProjects((current) => current.map((p) => (p.id === updated.id ? updated : p)));
+      } catch (error: unknown) {
+        const message = toChineseError(error, '项目保存失败，请稍后重试');
+        throw new Error(message);
+      }
+    },
+    [projects],
+  );
+
+  const deleteProjectAction = useCallback(async (id: number): Promise<void> => {
+    try {
+      await removeProject(id);
+      setProjects((current) => current.filter((p) => p.id !== id));
+    } catch (error: unknown) {
+      const message = toChineseError(error, '项目删除失败，请稍后重试');
+      throw new Error(message);
+    }
+  }, []);
 
   const loadTodos = useCallback(async (showLoading: boolean): Promise<void> => {
     if (showLoading) setTodosLoading(true);
@@ -412,6 +504,15 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     setNoteArchived: setNoteArchivedAction,
     deleteNote: deleteNoteAction,
     exportNote: exportNoteAction,
+    projects,
+    projectsLoading,
+    projectsError: projectsError,
+    addProject: addProjectAction,
+    editProject: editProjectAction,
+    deleteProject: deleteProjectAction,
+    projectFilter,
+    openProject: (id: number) => setProjectFilter(id),
+    clearProjectFilter: () => setProjectFilter(null),
     links,
     addLink: (name, target, groupName) => {
       const kind = /^https?:\/\//i.test(target) ? ('url' as const) : ('path' as const);

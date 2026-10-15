@@ -2,6 +2,7 @@
 // 统一带超时与错误中文化；数据形状即 Go 端 DTO（mygo.ts 生成）。
 
 import { ProjectService, type Project } from '../mygo';
+export type { Project };
 import { toChineseError } from './app-settings';
 
 /** 读全部项目（携带待办计数）。 */

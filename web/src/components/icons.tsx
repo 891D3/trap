@@ -150,3 +150,69 @@ export const IconExport = ({ size = 16 }: IconProps) =>
       <path d="M12 3v12M7 10l5 5 5-5M4 21h16" />
     </>
   ));
+export const IconSearch = ({ size = 16 }: IconProps) =>
+  base(size, (
+    <>
+      <circle cx="11" cy="11" r="6.5" />
+      <path d="m20 20-3.5-3.5" />
+    </>
+  ));
+
+export const IconBell = ({ size = 18 }: IconProps) =>
+  base(size, (
+    <>
+      <path d="M18 9.5a6 6 0 1 0-12 0c0 4.5-1.5 5.5-1.5 5.5h15S18 14 18 9.5Z" />
+      <path d="M10.3 19a2 2 0 0 0 3.4 0" />
+    </>
+  ));
+
+export const IconFilter = ({ size = 18 }: IconProps) =>
+  base(size, (
+    <>
+      <path d="M4 5h16M7 12h10M10 19h4" />
+    </>
+  ));
+
+export const IconMoon = ({ size = 18 }: IconProps) =>
+  base(size, (
+    <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5Z" />
+  ));
+
+export const IconSun = ({ size = 18 }: IconProps) =>
+  base(size, (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4" />
+    </>
+  ));
+
+export const IconMonitor = ({ size = 18 }: IconProps) =>
+  base(size, (
+    <>
+      <rect x="3" y="4" width="18" height="13" rx="2" />
+      <path d="M8 21h8m-4-4v4" />
+    </>
+  ));
+
+export const IconStock = ({ size = 18 }: IconProps) =>
+  base(size, (
+    <>
+      <path d="M4 20V10m6 10V4m6 16v-7" />
+    </>
+  ));
+
+export const IconDots = ({ size = 18 }: IconProps) =>
+  base(size, (
+    <>
+      <circle cx="5" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.2" fill="currentColor" stroke="none" />
+    </>
+  ));
+
+export const IconChevronDouble = ({ size = 16 }: IconProps) =>
+  base(size, (
+    <>
+      <path d="m11 6 6 6-6 6M5 6l6 6-6 6" />
+    </>
+  ));

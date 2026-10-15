@@ -170,7 +170,7 @@ func runSettingsFlow(page, syncPage *mygo.Page, url, exportDir string) error {
 
 	name, err := mygo.EvalAs[string](page, `document.querySelector('.side-user-name')?.textContent ?? ''`)
 	if err != nil || name != "Eric" {
-		current, _ := mygo.EvalAs[string](page, `JSON.stringify({name: document.querySelector('.side-user-name')?.textContent ?? '', input: document.querySelector('input')?.value ?? '', dataDir: document.querySelector('input[aria-label="数据目录"]')?.value ?? ''})`)
+		current, _ := mygo.EvalAs[string](page, `JSON.stringify({name: document.querySelector('.side-user-name')?.textContent ?? '', input: document.querySelector('input[aria-label="姓名"]')?.value ?? '', dataDir: document.querySelector('input[aria-label="数据目录"]')?.value ?? ''})`)
 		return fmt.Errorf("首次设置姓名 = %q，期望 Eric，错误=%v；当前状态=%s", name, err, current)
 	}
 	dataDir, err := mygo.EvalAs[string](page, `document.querySelector('input[aria-label="数据目录"]')?.value ?? ''`)
@@ -178,11 +178,11 @@ func runSettingsFlow(page, syncPage *mygo.Page, url, exportDir string) error {
 		return fmt.Errorf("数据目录 = %q，期望包含 trap-e2e-data，错误=%v", dataDir, err)
 	}
 
-	if err := setInputAndBlur(page, `input`, "E2E 用户"); err != nil {
+	if err := setInputAndBlur(page, `input[aria-label="姓名"]`, "E2E 用户"); err != nil {
 		return fmt.Errorf("填写姓名: %w", err)
 	}
 	if err := waitFor(page, `document.querySelector('.side-user-name')?.textContent === 'E2E 用户'`, 10*time.Second); err != nil {
-		current, _ := mygo.EvalAs[string](page, `JSON.stringify({name: document.querySelector('.side-user-name')?.textContent ?? '', input: document.querySelector('input')?.value ?? '', alert: document.querySelector('[role="alert"]')?.textContent ?? ''})`)
+		current, _ := mygo.EvalAs[string](page, `JSON.stringify({name: document.querySelector('.side-user-name')?.textContent ?? '', input: document.querySelector('input[aria-label="姓名"]')?.value ?? '', alert: document.querySelector('[role="alert"]')?.textContent ?? ''})`)
 		return fmt.Errorf("姓名保存后 Sidebar 未同步: %w；当前状态=%s", err, current)
 	}
 	if err := waitFor(syncPage, `document.querySelector('.side-user-name')?.textContent === 'E2E 用户'`, 10*time.Second); err != nil {
@@ -227,7 +227,7 @@ func runSettingsFlow(page, syncPage *mygo.Page, url, exportDir string) error {
 		return fmt.Errorf("主题重载后未持久化: %w", err)
 	}
 
-	if err := setInputAndBlur(page, `input`, ""); err != nil {
+	if err := setInputAndBlur(page, `input[aria-label="姓名"]`, ""); err != nil {
 		return fmt.Errorf("填写空姓名: %w", err)
 	}
 	if err := waitFor(page, `document.querySelector('[role="alert"]')?.textContent?.includes('姓名不能为空') === true`, 5*time.Second); err != nil {
@@ -319,28 +319,38 @@ func runTodoFlow(page, syncPage *mygo.Page, url string) error {
 	return nil
 }
 
-// runLayoutFlow 验证布局约定：辅助区（.aux）仅看板可见，其他视图无辅助区；
-// 看板视图不再有「看板 · M2 开放」中间占位。
+// runLayoutFlow 验证 v3 壳布局约定（PRD v2.0 + ui-baseline v3 §八）：
+//   - 辅助区进入看板与待办均可见（内容随视图映射，R4/R5 充实）；
+//   - 设置页不渲染辅助区；
+//   - 看板中间不再有「看板 · M2 开放」占位；
+//   - 默认进入信息记录页（深链接）后顶栏呈现页面标题与面包屑。
 func runLayoutFlow(page *mygo.Page, url string) error {
-	// 看板：辅助区可见，且中间占位已移除。
-	if err := loadPageDocument(page, uniquePageURL(url)+"&e2eView=dashboard"); err != nil {
-		return fmt.Errorf("布局检查: 加载看板: %w", err)
+	// 看板：辅助区可见，且中间占位已移除；顶栏标题为「数据看板」。宽屏默认视图也是看板。
+	if err := loadPageDocument(page, uniquePageURL(url)); err != nil {
+		return fmt.Errorf("布局检查: 加载默认视图: %w", err)
 	}
-	if err := waitFor(page, `document.querySelector('.aux') !== null`, 10*time.Second); err != nil {
-		return fmt.Errorf("看板视图缺少辅助区: %w", err)
+	if err := waitFor(page, `document.querySelector('.aux') !== null && document.querySelector('.topbar')?.textContent.includes('数据看板') === true`, 10*time.Second); err != nil {
+		return fmt.Errorf("默认视图应为数据看板且含辅助区: %w", err)
 	}
 	if ok, err := mygo.EvalAs[bool](page, `document.body.innerText.includes('看板 · M2 开放') === false`); err != nil || !ok {
 		return fmt.Errorf("看板视图仍残留中间占位（err=%v, ok=%v）", err, ok)
 	}
-	// 待办：无辅助区。
+	// 待办：辅助区同样可见（v3：随视图映射为月历/按属性等卡片，R5 充实）。
 	if err := loadPageDocument(page, uniquePageURL(url)+"&e2eView=todo"); err != nil {
 		return fmt.Errorf("布局检查: 加载待办: %w", err)
 	}
-	if err := waitFor(page, `document.querySelector('.todo-input') !== null`, 10*time.Second); err != nil {
-		return fmt.Errorf("布局检查: 等待待办页: %w", err)
+	if err := waitFor(page, `document.querySelector('.todo-input') !== null && document.querySelector('.aux') !== null`, 10*time.Second); err != nil {
+		return fmt.Errorf("待办视图应保留辅助区: %w", err)
+	}
+	// 设置：无辅助区。
+	if err := loadPageDocument(page, uniquePageURL(url)+"&e2eView=settings"); err != nil {
+		return fmt.Errorf("布局检查: 加载设置页: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('input[aria-label="数据目录"]') !== null`, 10*time.Second); err != nil {
+		return fmt.Errorf("布局检查: 等待设置页: %w", err)
 	}
 	if ok, err := mygo.EvalAs[bool](page, `document.querySelector('.aux') === null`); err != nil || !ok {
-		return fmt.Errorf("待办视图不应显示辅助区（err=%v, ok=%v）", err, ok)
+		return fmt.Errorf("设置页不应显示辅助区（err=%v, ok=%v）", err, ok)
 	}
 	return nil
 }
@@ -598,6 +608,10 @@ func clickAriaLabel(page *mygo.Page, label string) error {
 }
 
 func clickNoteCard(page *mygo.Page, title string) error {
+	// 记录列表异步加载；先等任意卡片出现再定位标题，避免与首次列表请求赛跑。
+	if err := waitFor(page, `document.querySelector('.note-card') !== null`, 10*time.Second); err != nil {
+		return fmt.Errorf("等待记录列表加载: %w", err)
+	}
 	_, err := page.Eval(fmt.Sprintf(`(() => {
 		const cards = [...document.querySelectorAll('.note-card')];
 		const card = cards.find((item) => item.querySelector('.note-card-title')?.textContent?.trim() === %q);
@@ -660,7 +674,7 @@ func clickSettings(page *mygo.Page) error {
 }
 
 func reloadToTodo(page *mygo.Page, url string) error {
-	if err := loadPageDocument(page, uniquePageURL(url)); err != nil {
+	if err := loadPageDocument(page, uniquePageURL(url)+"&e2eView=todo"); err != nil {
 		return err
 	}
 	return waitFor(page, `document.querySelector('.todo-input') !== null`, 15*time.Second)
@@ -713,7 +727,7 @@ func reloadAndWait(page *mygo.Page, url string) error {
 	if err := loadPageDocument(page, uniquePageURL(url)); err != nil {
 		return err
 	}
-	if err := waitFor(page, `document.querySelector('.todo-input') !== null`, 15*time.Second); err != nil {
+	if err := waitFor(page, `document.querySelector('button.side-item') !== null`, 15*time.Second); err != nil {
 		return err
 	}
 	if err := clickSettings(page); err != nil {

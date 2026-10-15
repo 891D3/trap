@@ -105,6 +105,7 @@ export function SettingsView() {
           <div className="settings-row-label">姓名</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
+              aria-label="姓名"
               value={nameDraft}
               disabled={settingsLoading || saving !== null}
               onChange={(e) => setNameDraft(e.target.value)}
