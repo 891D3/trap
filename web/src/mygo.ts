@@ -4,6 +4,29 @@ import { call, event } from "mygo-runtime";
 
 // ---- Types ----
 
+/** AgendaItem 是「今日信息」时间轴的一项。 */
+export interface AgendaItem {
+  /** "todo" | "note" */
+  kind: string;
+  refId: number;
+  title: string;
+  /** UTC RFC3339（todo.due_date 或 note.created_at） */
+  at?: string;
+  /** todo: done|scheduled；note: logged */
+  status: string;
+}
+
+/** DashboardStats 是数据看板的全部聚合结果（PRD v2.0 §4.2）。 */
+export interface DashboardStats {
+  todayTodoCount: number;
+  yesterdayTodoCount: number;
+  activeProjects: number;
+  noteTotal: number;
+  noteWeekNew: number;
+  todayAgenda: AgendaItem[];
+  projectProgress: ProjectProgress[];
+}
+
 /** ExportResult 描述一次或多次 Markdown 导出的结果。 */
 export interface ExportResult {
   files: string[];
@@ -39,6 +62,42 @@ export interface NoteSummary {
   updatedAt: string;
 }
 
+/**
+ * Project 是一个项目（含列表页所需的计数）。
+ *
+ * TotalTodos/OpenTodos 仅在 List/Get 时填充（聚合列）；保证零值安全。
+ */
+export interface Project {
+  id: number;
+  name: string;
+  color: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  /** 统计：该项目的全部待办数与未完成数。 */
+  totalTodos: number;
+  openTodos: number;
+}
+
+/** ProjectChangeAction 表示项目变更类型。 */
+export type ProjectChangeAction = "added" | "updated" | "deleted";
+
+/** ProjectChangedPayload 是 project.changed 事件载荷。 */
+export interface ProjectChangedPayload {
+  action: ProjectChangeAction;
+  project?: Project;
+  projectId?: number;
+}
+
+/** ProjectProgress 是单个项目的进度聚合。 */
+export interface ProjectProgress {
+  projectId: number;
+  name: string;
+  color: string;
+  open: number;
+  total: number;
+}
+
 /** Settings 是设置页可见的应用级设置（map 到 settings 表的业务键）。 */
 export interface Settings {
   /** user.name */
@@ -58,6 +117,10 @@ export interface Todo {
   id: number;
   title: string;
   done: boolean;
+  category?: string;
+  /** UTC RFC3339；NULL=未安排 */
+  dueDate?: string;
+  projectId?: number;
   createdAt: string;
   /** NULL = 未完成 */
   completedAt?: string;
@@ -75,6 +138,46 @@ export interface TodoChangedPayload {
   action: TodoChangeAction;
   todo?: Todo;
   todoId?: number;
+}
+
+/** TodoFilter 是 List 的过滤条件；零值 = 不过滤（等价 v1 全量列表）。 */
+export interface TodoFilter {
+  /** nil=不过滤；true=仅已完成；false=仅未完成 */
+  Done: boolean | null;
+  /**
+   * Category 精确匹配；空串 = 不过滤分类（M0 的「按属性看」只有三个
+   * 具名分类，不存在「仅未分类」的过滤需求）。
+   */
+  Category: string;
+  /**
+   * ProjectID 与 FilterNoProject 组合使用：
+   *   - HasProjectID=false：不过滤项目；
+   *   - HasProjectID=true 且 ProjectID=id：仅该项目；
+   *   - 含 ProjectID=NULL 的语义用 FilterNoProject=true 表达（保留 Entry 以防歧义）。
+   */
+  HasProjectID: boolean;
+  ProjectID: number | null;
+  FilterNoProject: boolean;
+  /** Due 从 / Due 到：due_date 范围过滤（含边界，UTC RFC3339 文本比较）。 */
+  DueFrom: string | null;
+  /** Due 从 / Due 到：due_date 范围过滤（含边界，UTC RFC3339 文本比较）。 */
+  DueTo: string | null;
+  /** true = 仅未安排（due_date IS NULL） */
+  NoDue: boolean;
+}
+
+/**
+ * TodoInput 是新增/更新待办的可编辑字段。
+ *
+ * dueDate 传 UTC RFC3339 文本（由前端完成「明天 15:00」等短语解析后转 UTC
+ * 传入，PRD v2.0 §10 拟定决策 2）；无声存 Date-only 时前端统一补当地当日
+ * 00:00 再转 UTC，Go 只做格式校验。
+ */
+export interface TodoInput {
+  title: string;
+  category?: string;
+  dueDate?: string;
+  projectId?: number;
 }
 
 // ---- Services ----
@@ -110,27 +213,38 @@ export const AppService = {
 } as const;
 
 /**
- * TodoService 暴露待办 CRUD typed IPC。
+ * TodoService 暴露待办 CRUD 与看板聚合 typed IPC。
  *
  * store 通过包级 AttachTodoStore 注入，避免把内部数据库句柄作为导出方法
  * 暴露给前端（同 T3.1 的 AttachStore 设计）。
  */
 export const TodoService = {
-  /** Add 新增待办并广播 added 事件。 */
-  add(title: string): Promise<Todo> {
-    return call("TodoService.Add", title);
+  /**
+   * Add 新增待办（title 必填；category/dueDate/projectId 可选）并广播事件。
+   * dueDate 由前端完成短语解析后传 UTC RFC3339（PRD §10 决策 2），Go 校验格式。
+   */
+  add(in_: TodoInput): Promise<Todo> {
+    return call("TodoService.Add", in_);
   },
   /** Delete 删除待办并广播 deleted 事件。 */
   delete(id: number): Promise<void> {
     return call("TodoService.Delete", id);
   },
-  /** List 列出全部待办。 */
-  list(): Promise<Todo[]> {
-    return call("TodoService.List");
+  /** List 按过滤条件列出待办（零值 filter = v1 全量列表）。 */
+  list(f: TodoFilter): Promise<Todo[]> {
+    return call("TodoService.List", f);
   },
   /** SetDone 设置完成/未完成状态并广播 updated 事件。 */
   setDone(id: number, done: boolean): Promise<Todo> {
     return call("TodoService.SetDone", id, done);
+  },
+  /** Stats 返回数据看板聚合（PRD v2.0 §4.2；now 取本机时间，本地时区折算日内边界）。 */
+  stats(): Promise<DashboardStats> {
+    return call("TodoService.Stats");
+  },
+  /** Update 更新待办可编辑字段（标题/分类/日期/项目）并广播事件。 */
+  update(id: number, in_: TodoInput): Promise<Todo> {
+    return call("TodoService.Update", id, in_);
   },
 } as const;
 
@@ -169,6 +283,26 @@ export const NoteService = {
   },
 } as const;
 
+/** ProjectService 暴露项目 CRUD typed IPC。 */
+export const ProjectService = {
+  /** Add 新增项目（name 必填；color 为前端色令牌名，缺省主色 slate）。 */
+  add(name: string, color: string): Promise<Project> {
+    return call("ProjectService.Add", name, color);
+  },
+  /** Delete 删除项目并广播 deleted；关联待办的关联由 store 层置 NULL。 */
+  delete(id: number): Promise<void> {
+    return call("ProjectService.Delete", id);
+  },
+  /** List 列出全部项目（携带待办计数）。 */
+  list(): Promise<Project[]> {
+    return call("ProjectService.List");
+  },
+  /** Update 更新项目（名称/颜色/排序）。 */
+  update(id: number, name: string, color: string, sortOrder: number): Promise<Project> {
+    return call("ProjectService.Update", id, name, color, sortOrder);
+  },
+} as const;
+
 // ---- Events ----
 
 /** Events sent by the Go side. Subscribe with `events.name.on(listener)`. */
@@ -180,6 +314,8 @@ export const events = {
   settingsChanged: event<Settings>("settings.changed"),
   /** NoteChanged 在记录成功写入、归档或删除后广播。 */
   noteChanged: event<NoteChangedPayload>("note.changed"),
+  /** ProjectChanged 在项目成功写入后广播到所有 WebView。 */
+  projectChanged: event<ProjectChangedPayload>("project.changed"),
   /** TodoChanged 在待办成功写入后广播到所有 WebView。 */
   todoChanged: event<TodoChangedPayload>("todo.changed"),
 } as const;

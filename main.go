@@ -21,7 +21,8 @@ func main() {
 	app := &service.AppService{}
 	todos := &service.TodoService{}
 	notes := &service.NoteService{}
-	mygo.Bind(app, todos, notes)
+	projects := &service.ProjectService{} // v2.0：项目实体（待办关联/侧栏列表）
+	mygo.Bind(app, todos, notes, projects)
 
 	mygo.App.WhenReady(func() {
 		// 数据库位置：userData 目录下的 trap.db（mygo.PathUserData 首次使用会创建目录）。
@@ -36,6 +37,7 @@ func main() {
 		service.AttachStore(app, db, userDir)
 		service.AttachTodoStore(todos, db)
 		service.AttachNoteStore(notes, db)
+		service.AttachProjectStore(projects, db)
 
 		mygo.NewWindow(mygo.WindowOptions{
 			Title:           "Trap",

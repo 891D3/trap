@@ -40,19 +40,19 @@ func tableExists(t *testing.T, db *DB, table string) bool {
 func TestMigrateFreshReplay(t *testing.T) {
 	db := openTempFile(t)
 
-	// 四表全部建立。
-	for _, table := range []string{"settings", "todos", "notes", "quick_links"} {
+	// 五表全部建立（0002 新增 projects）。
+	for _, table := range []string{"settings", "todos", "notes", "quick_links", "projects"} {
 		if !tableExists(t, db, table) {
 			t.Errorf("干净库迁移后缺少表 %q", table)
 		}
 	}
-	// 版本记录到 0001。
+	// 版本记录到 0002。
 	v, err := db.SchemaVersion(context.Background())
 	if err != nil {
 		t.Fatalf("读取版本: %v", err)
 	}
-	if v != 1 {
-		t.Errorf("版本 = %d, 期望 1", v)
+	if v != 2 {
+		t.Errorf("版本 = %d, 期望 2", v)
 	}
 }
 
@@ -66,7 +66,7 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("第一次打开: %v", err)
 	}
-	created, err := db1.AddTodo(ctx, "迁移前的数据")
+	created, err := db1.AddTodo(ctx, TodoInput{Title: "迁移前的数据"})
 	if err != nil {
 		t.Fatalf("写入数据: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestMigrateIdempotent(t *testing.T) {
 		t.Fatalf("第一次关闭: %v", err)
 	}
 
-	// 重新打开：应跳过 0001，数据无损。
+	// 重新打开：应跳过 0001/0002，数据无损。
 	db2, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("第二次打开: %v", err)
@@ -85,8 +85,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取版本: %v", err)
 	}
-	if v != 1 {
-		t.Errorf("版本 = %d, 期望仍为 1（不重跑）", v)
+	if v != 2 {
+		t.Errorf("版本 = %d, 期望仍为 2（不重跑）", v)
 	}
 	todo, err := db2.GetTodo(ctx, created.ID)
 	if err != nil {
@@ -97,7 +97,7 @@ func TestMigrateIdempotent(t *testing.T) {
 	}
 }
 
-// TestMigrateRollbackOnFailure：版本 0002 内一条语句失败时，整个迁移
+// TestMigrateRollbackOnFailure：坏迁移（0003）内一条语句失败时，整个迁移
 // （含同事务内的其他语句与版本记录）必须回滚，0001 的表不受影响。
 func TestMigrateRollbackOnFailure(t *testing.T) {
 	// 业务层面的 embed FS 在 store 包内是固定的，无法注入坏迁移；
@@ -109,7 +109,7 @@ func TestMigrateRollbackOnFailure(t *testing.T) {
 	}
 	badFS := fstest.MapFS{
 		"migrations/0001_init.sql": {Data: real0001},
-		"migrations/0002_bad.sql": {
+		"migrations/0003_bad.sql": {
 			Data: []byte("CREATE TABLE should_rollback (id INTEGER);\n" + // 先成功
 				"CREATE (语法错误);"), // 再失败
 		},
@@ -128,7 +128,8 @@ func TestMigrateRollbackOnFailure(t *testing.T) {
 		t.Fatal("坏迁移应当报错")
 	}
 
-	// 0001 应已应用（版本=1）。0002 的表与其版本记录必须不存在。
+	// 本注入 FS 只含 0001 与坏 0003，故版本停在 1；坏迁移的表与其版本
+	// 记录必须不存在（真实 0002 不参与本用例，其回滚语义由同机制保证）。
 	v, err := db.SchemaVersion(context.Background())
 	if err != nil {
 		t.Fatalf("读取版本: %v", err)

@@ -4,10 +4,17 @@
 // 这里集中做类型收窄，避免各表代码重复书写断言。
 package store
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 // timeRFC3339 是时间字段的统一存储格式：UTC RFC3339（AGENTS.md §4.1）。
 const timeRFC3339 = time.RFC3339
+
+// ErrNotFound 是「记录不存在」的统一错误；可用 errors.Is 判断。
+// 供各表存取代码共同使用（v2 前位于 todos.go，随重写移至本文件集中导出）。
+var ErrNotFound = errors.New("store: 记录不存在")
 
 // columnText 断言列为 TEXT；非 string（含 NULL）返回空串。
 func columnText(v any) string {

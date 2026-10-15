@@ -2,12 +2,16 @@
 //
 // 服务层只做 IPC 边界、参数校验与事件广播；SQL 和持久化细节全部复用
 // internal/store，避免前端或协议层绕过数据访问边界。
+//
+// v2.0：Add/Update 走 TodoInput（PRD §5），List 支持 TodoFilter，新增 Stats
+// 看板聚合；done 状态切换仍走 SetDone。
 package service
 
 import (
 	"context"
 	"errors"
 	"log"
+	"time"
 
 	"github.com/891D3/trap/internal/store"
 	"github.com/egoist/mygo"
@@ -33,7 +37,7 @@ type TodoChangedPayload struct {
 // TodoChanged 在待办成功写入后广播到所有 WebView。
 var TodoChanged = mygo.NewEvent[TodoChangedPayload]("todo.changed")
 
-// TodoService 暴露待办 CRUD typed IPC。
+// TodoService 暴露待办 CRUD 与看板聚合 typed IPC。
 //
 // store 通过包级 AttachTodoStore 注入，避免把内部数据库句柄作为导出方法
 // 暴露给前端（同 T3.1 的 AttachStore 设计）。
@@ -60,13 +64,14 @@ func (s *TodoService) ready() (*store.DB, error) {
 	return s.store, nil
 }
 
-// Add 新增待办并广播 added 事件。
-func (s *TodoService) Add(ctx context.Context, title string) (store.Todo, error) {
+// Add 新增待办（title 必填；category/dueDate/projectId 可选）并广播事件。
+// dueDate 由前端完成短语解析后传 UTC RFC3339（PRD §10 决策 2），Go 校验格式。
+func (s *TodoService) Add(ctx context.Context, in store.TodoInput) (store.Todo, error) {
 	db, err := s.ready()
 	if err != nil {
 		return store.Todo{}, err
 	}
-	todo, err := db.AddTodo(ctx, title)
+	todo, err := db.AddTodo(ctx, in)
 	if err != nil {
 		return store.Todo{}, err
 	}
@@ -74,13 +79,27 @@ func (s *TodoService) Add(ctx context.Context, title string) (store.Todo, error)
 	return todo, nil
 }
 
-// List 列出全部待办。
-func (s *TodoService) List(ctx context.Context) ([]store.Todo, error) {
+// Update 更新待办可编辑字段（标题/分类/日期/项目）并广播事件。
+func (s *TodoService) Update(ctx context.Context, id int64, in store.TodoInput) (store.Todo, error) {
+	db, err := s.ready()
+	if err != nil {
+		return store.Todo{}, err
+	}
+	todo, err := db.UpdateTodo(ctx, id, in)
+	if err != nil {
+		return store.Todo{}, err
+	}
+	s.broadcast(TodoChangedPayload{Action: TodoUpdated, Todo: &todo, TodoID: todo.ID})
+	return todo, nil
+}
+
+// List 按过滤条件列出待办（零值 filter = v1 全量列表）。
+func (s *TodoService) List(ctx context.Context, f store.TodoFilter) ([]store.Todo, error) {
 	db, err := s.ready()
 	if err != nil {
 		return nil, err
 	}
-	return db.ListTodos(ctx)
+	return db.ListTodos(ctx, f)
 }
 
 // SetDone 设置完成/未完成状态并广播 updated 事件。
@@ -108,6 +127,16 @@ func (s *TodoService) Delete(ctx context.Context, id int64) error {
 	}
 	s.broadcast(TodoChangedPayload{Action: TodoDeleted, TodoID: id})
 	return nil
+}
+
+// Stats 返回数据看板聚合（PRD v2.0 §4.2；now 取本机时间，本地时区折算日内边界）。
+func (s *TodoService) Stats(ctx context.Context) (store.DashboardStats, error) {
+	db, err := s.ready()
+	if err != nil {
+		return store.DashboardStats{}, err
+	}
+	now := time.Now()
+	return db.Stats(ctx, now, time.Local)
 }
 
 // broadcast 记录广播失败但不回滚已经落库的数据；前端可通过 List 重新同步。

@@ -110,7 +110,7 @@ func TestTodoCRUDAndCompletedAt(t *testing.T) {
 	ctx := context.Background()
 
 	// 新增。
-	todo, err := db.AddTodo(ctx, "  买牛奶  ")
+	todo, err := db.AddTodo(ctx, TodoInput{Title: "  买牛奶  "})
 	if err != nil {
 		t.Fatalf("新增: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestTodoCRUDAndCompletedAt(t *testing.T) {
 	}
 
 	// 列表。
-	list, err := db.ListTodos(ctx)
+	list, err := db.ListTodos(ctx, TodoFilter{})
 	if err != nil {
 		t.Fatalf("列表: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestTodoCRUDAndCompletedAt(t *testing.T) {
 	}
 
 	// 空标题拒绝。
-	if _, err := db.AddTodo(ctx, "   "); err == nil {
+	if _, err := db.AddTodo(ctx, TodoInput{Title: "   "}); err == nil {
 		t.Error("空标题应被拒绝")
 	}
 }

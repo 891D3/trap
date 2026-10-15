@@ -247,7 +247,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     }
     setTodosError(null);
     try {
-      const created = await createTodo(trimmedTitle);
+      const created = await createTodo({ title: trimmedTitle });
       setTodos((current) => [...current.filter((todo) => todo.id !== created.id), created]);
     } catch (error: unknown) {
       const message = toChineseError(error, '待办添加失败，请稍后重试');

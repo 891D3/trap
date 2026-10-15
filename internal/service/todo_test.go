@@ -23,7 +23,7 @@ func newTodoService(t *testing.T) *TodoService {
 
 func TestTodoServiceReadyGuard(t *testing.T) {
 	service := &TodoService{}
-	if _, err := service.List(context.Background()); err == nil {
+	if _, err := service.List(context.Background(), store.TodoFilter{}); err == nil {
 		t.Fatal("未注入 store 时 List 应返回错误")
 	}
 }
@@ -35,12 +35,12 @@ func TestTodoServiceCRUDAndEvents(t *testing.T) {
 	if TodoChanged.Name() != "todo.changed" {
 		t.Fatalf("事件名称 = %q, 期望 todo.changed", TodoChanged.Name())
 	}
-	if _, err := service.Add(ctx, "   "); err == nil {
+	if _, err := service.Add(ctx, store.TodoInput{Title: "   "}); err == nil {
 		t.Fatal("空标题应返回错误")
 	}
 
 	// Add 会走真实 store 写入并触发 added 广播路径；无窗口时 Broadcast 安全返回。
-	todo, err := service.Add(ctx, "  写服务测试  ")
+	todo, err := service.Add(ctx, store.TodoInput{Title: "  写服务测试  "})
 	if err != nil {
 		t.Fatalf("Add: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestTodoServiceCRUDAndEvents(t *testing.T) {
 		t.Errorf("Add 结果 = %+v", todo)
 	}
 
-	list, err := service.List(ctx)
+	list, err := service.List(ctx, store.TodoFilter{})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
@@ -77,5 +77,40 @@ func TestTodoServiceCRUDAndEvents(t *testing.T) {
 	}
 	if err := service.Delete(ctx, todo.ID); !errors.Is(err, store.ErrNotFound) {
 		t.Errorf("重复 Delete 错误 = %v, 期望 ErrNotFound", err)
+	}
+}
+
+func TestTodoServiceUpdateAndInputValidation(t *testing.T) {
+	service := newTodoService(t)
+	ctx := context.Background()
+
+	// TodoInput 校验路径（service → store validateInput）。
+	if _, err := service.Add(ctx, store.TodoInput{Title: "", Category: store.CatWork}); err == nil {
+		t.Fatal("空标题应返回错误")
+	}
+	if _, err := service.Add(ctx, store.TodoInput{Title: "x", Category: "urgent"}); err == nil {
+		t.Fatal("非法分类应返回错误")
+	}
+
+	todo, err := service.Update(ctx, 99999, store.TodoInput{Title: "x"})
+	if err == nil || todo.ID != 0 {
+		t.Fatalf("更新不存在待办应失败, 实际 %+v err=%v", todo, err)
+	}
+}
+
+func TestTodoServiceStats(t *testing.T) {
+	service := newTodoService(t)
+	ctx := context.Background()
+
+	// 空 DB：Stats 返回零值聚合（切片非 nil）。
+	stats, err := service.Stats(ctx)
+	if err != nil {
+		t.Fatalf("Stats: %v", err)
+	}
+	if stats.TodayAgenda == nil || stats.ProjectProgress == nil {
+		t.Fatal("聚合切片应为空切片而非 nil")
+	}
+	if stats.TodayTodoCount != 0 || stats.NoteTotal != 0 {
+		t.Errorf("空库聚合 = %+v", stats)
 	}
 }
