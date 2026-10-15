@@ -103,6 +103,7 @@ export function Sidebar({ view, collapsed, onSelectView, onToggleCollapsed }: Si
               onClick={() => onSelectView(item.id)}
               title={collapsed ? item.label : undefined}
             >
+              {view === item.id && <span className="nav-ind" aria-hidden="true" />}
               {item.icon}
               <span className="side-label">{item.label}</span>
               {item.badge && undoneCount > 0 && (

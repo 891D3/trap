@@ -107,22 +107,48 @@ input {
   padding-right: 0;
 }
 
+/* 收起态：左侧 3px 指示条隐藏，避免把图标挤离垂直中线（收起后仅保留图标） */
+/* 收起态：项目行同样居中（仅保留色点） */
+.side-rail.is-collapsed:not(:hover) .side-project-row {
+  justify-content: center;
+}
+
+.side-rail.is-collapsed:not(:hover) .side-project {
+  justify-content: center;
+  padding-left: 0;
+  padding-right: 0;
+  /* 零宽文字项之间的 gap 会把色点推离中线 */
+  gap: 0;
+}
+
 .side-rail.is-collapsed:not(:hover) .side-user {
   justify-content: center;
+}
+
+/* 收起且未悬停：收起按钮隐藏（仅图标保留头像与导航图标） */
+.side-rail.is-collapsed:not(:hover) .side-collapse-btn {
+  display: none;
+}
+
+/* 收起态：用户文本列整体移出布局（flex:1 空壳会占据宽度使头像偏左） */
+.side-rail.is-collapsed:not(:hover) .side-user-line {
+  display: none;
 }
 
 .side-user {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 6px 8px 14px;
+  padding: 6px 0 14px;
 }
 
 /* 姓名 + 「的工作台」同行显示 */
 .side-user-line {
+  /* v3：姓名在上、「个人工作台」在下（设计稿 2:638 用户文本纵向两行） */
   display: flex;
-  align-items: baseline;
-  gap: 1px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   min-width: 0;
   flex: 1;
 }
@@ -186,8 +212,8 @@ input {
   position: relative;
 }
 
-.side-item.is-active::before {
-  content: '';
+.nav-ind {
+  /* v3 active 指示条：显式元素（设计稿 2:1050），贴 item 左缘垂直居中 */
   position: absolute;
   left: 0;
   top: 50%;
@@ -196,6 +222,7 @@ input {
   height: 20px;
   border-radius: 999px;
   background: var(--primary);
+  flex: none;
 }
 
 .side-item:disabled {
@@ -431,7 +458,7 @@ input {
   align-items: center;
   gap: 8px;
   width: 280px;
-  height: var(--ctrl-h);
+  height: 32px;
   margin: 0 auto;
   padding: 0 12px;
   border-radius: var(--radius-item);
@@ -463,8 +490,8 @@ input {
   align-items: center;
   justify-content: center;
   position: relative;
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   border-radius: var(--radius-item);
   color: var(--text-2);
   background: var(--border-soft);
@@ -1073,7 +1100,8 @@ input {
     transform: none;
   }
 
+  /* v3：narrow 模式主区自身不加 padding，顶栏贴顶；内容留白由 .main .view 负责 */
   .main {
-    padding: 20px 20px 16px;
+    padding: 0;
   }
 }

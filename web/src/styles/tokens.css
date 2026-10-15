@@ -88,7 +88,7 @@
   --side-w: 216px;
   --side-w-collapsed: 64px;
   --side-margin: 0px;
-  --topbar-h: 64px;
+  --topbar-h: 48px;   /* 顶栏更纤细（用户目检反馈，2026-10-15） */
   --aux-w: 256px;
   --main-pad: 12px; /* 主内容区 p12 */
   --gap-block: 12px; /* 卡片网格 g12 */
