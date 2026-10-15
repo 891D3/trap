@@ -1,93 +1,164 @@
 /*
- * 设计令牌 v2（来源：docs/design/ui-baseline.md「v2 生效令牌」，参考模板 stylekit file-manager）
- * 主题由 JS 侧解析为 data-theme="light"|"dark" 后写入 <html>（跟随系统/手动）。
- * 配色取 Tailwind gray/blue 色板；卡片以细边框分层，默认无投影。
+ * 设计令牌 v3（来源：docs/design/ui-baseline.md v3，Ardot 设计稿 WorkDesktop Project v1.0）
+ *
+ * 来源与口径：
+ *   - Surface 双模式对照（设计稿 §02 Light/Dark 卡）：同一 token 双值，切换只换值不换结构。
+ *   - 语义色遵循中国金融市场惯例：涨红跌绿，全系统禁止混用。
+ *   - 布局：侧边栏 216px（收起 64px）、顶栏 64px、辅助区 256px、卡片网格 gap 12（功能页实测）。
+ *   - 字体：系统字体栈（不嵌字体文件）；数字展示用 tabular-nums（utility 类在 style.css）。
+ *
+ * 主题由 JS 侧解析为 data-theme="light"|"dark" 后写入 <html>（跟随系统/手动，settings.theme）。
+ * 变量命名与 v2 尽量保持（style.css 既有引用不破坏，R3–R6 重构时逐块迁移到新 token）。
  */
 :root {
-  /* 颜色 */
-  --bg: #f9fafb; /* gray-50：页面底 */
-  --surface: #ffffff; /* 卡片、侧栏、头部 */
-  --surface-glass: #f9fafb; /* 右栏卡片：与页面同底 + 1px 细边，视觉权重低于中栏白卡 */
-  --border: #e5e7eb; /* gray-200：主边框 */
-  --border-soft: #f3f4f6; /* gray-100：区块内分隔 */
-  --text: #111827; /* gray-900 */
-  --text-2: #6b7280; /* gray-500 */
-  --text-3: #9ca3af; /* gray-400 */
-  --primary: #3080ff; /* blue-500（模板实际值，Tailwind v4） */
-  --primary-hover: #155dfc; /* blue-600 */
-  --primary-text: #1447e6; /* blue-700：激活导航字色 */
-  --primary-soft: #eff6ff; /* blue-50：激活底衬 */
-  --ring: #90c5ff; /* blue-300：聚焦/悬停描边 */
-  --danger: #dc2626; /* red-600 */
-  --danger-soft: #fef2f2; /* red-50 */
+  /* ---- Surface（Light）---- */
+  --bg: #f5f5f7; /* 页面底 */
+  --surface: #ffffff; /* 卡片、侧栏、顶栏 */
+  --surface-glass: #f5f5f7; /* 右栏弱层级底（页 tab 式弱卡沿用） */
+  --border: #e4e4e7; /* zinc-200：主边框/分隔线/输入框描边 */
+  --border-soft: #f4f4f5; /* zinc-100：区块内分隔 */
 
-  /* 模板按钮色系（Tailwind -600 字 / -50 底 / -200 边） */
-  --blue-text: #155dfc;
-  --blue-border: #bedbff;
-  --green-text: #00a544;
-  --green-soft: #f0fdf4;
-  --green-border: #b9f8cf;
-  --purple-text: #9810fa;
-  --purple-soft: #faf5ff;
-  --purple-border: #e9d5ff;
-  --text-body: #374151; /* gray-700：中性按钮字色 */
+  /* ---- 文本 ---- */
+  --text: #18181b; /* zinc-900 主文本 */
+  --text-body: #3f3f46; /* zinc-700：正文/列表条目（功能页实测） */
+  --text-2: #52525b; /* zinc-600 次级 */
+  --text-3: #a1a1aa; /* zinc-400 辅助 */
 
-  /* 圆角：卡片 12px（xl），控件与导航 8px（lg） */
+  /* ---- 主色 Slate 蓝灰（品牌/主按钮/选中态）---- */
+  --primary: #566c8c; /* slate-500 */
+  --primary-hover: #47596f; /* slate-600 */
+  --primary-active: #384858; /* slate-700 */
+  --primary-text: #566c8c; /* 激活导航字色（同主色，无独立浅蓝） */
+  --primary-soft: #f1f4f8; /* slate-50 */
+  --ring: #c3cfde; /* slate-200 聚焦描边 */
+  --slate-50: #f1f4f8;
+  --slate-100: #dfe6ef;
+  --slate-200: #c3cfde;
+  --slate-300: #9daec3;
+  --slate-400: #758ca6;
+
+  /* ---- 语义色（涨红跌绿）---- */
+  --danger: #dc2626; /* 破坏性操作 = 上涨红主色独立使用 */
+  --danger-soft: #fee2e2;
+  --danger-text: #b91c1c;
+  --up: #dc2626; /* 上涨 Positive */
+  --up-soft: #fee2e2;
+  --up-text: #b91c1c;
+  --down: #16a34a; /* 下跌 Negative */
+  --down-soft: #dcfce7;
+  --down-text: #15803d;
+  --warn: #d97706; /* 警告 */
+  --warn-soft: #fef3c7;
+  --warn-text: #b45309;
+  --info: #2563eb; /* 信息 */
+  --info-soft: #dbeafe;
+  --info-text: #1d4ed8;
+
+  /* ---- 项目色令牌（store 层 token 名 → 色值，顺序即循环分配顺序）---- */
+  --proj-slate: #566c8c;
+  --proj-amber: #d97706;
+  --proj-green: #16a34a;
+  --proj-purple: #7c3aed;
+
+  /* ---- 旧语义沿用（R3–R6 迁移过渡；重定向到新色板）---- */
+  --blue-text: #384858; /* 原 blue 系 → slate 深字 */
+  --blue-border: #c3cfde;
+  --green-text: #15803d;
+  --green-soft: #dcfce7;
+  --green-border: #bbf7d0;
+  --purple-text: #6d28d9;
+  --purple-soft: #ede9fe;
+  --purple-border: #ddd6fe;
+
+  /* ---- 圆角：sm4 徽章 / md8 控件 / lg12 浮层 / xl16 主卡片 ---- */
   --radius-side: 0px;
-  --radius-card: 12px;
-  --radius-item: 8px;
+  --radius-card: 16px; /* xl：主卡片/弹层 */
+  --radius-item: 8px; /* md：按钮/输入框/导航项/日期块 */
   --radius-ctrl: 8px;
+  --radius-mini: 4px; /* sm：徽章底/复选框（复用 radius-mini 于小件） */
+  --radius-pop: 16px;
 
-  /* 阴影：静态无投影；仅悬浮与弹层使用 */
+  /* ---- 阴影：card 静息 0 1 3/4%；hover 0 4 12/8%；popover 0 8 24/12% ---- */
   --shadow-side: none;
-  --shadow-card: none;
-  --shadow-hover: 0 4px 12px rgba(17, 24, 39, 0.08);
-  --shadow-pop: 0 12px 32px rgba(17, 24, 39, 0.14);
+  --shadow-card: 0 1px 3px rgba(24, 24, 27, 0.04);
+  --shadow-hover: 0 4px 12px rgba(24, 24, 27, 0.08);
+  --shadow-pop: 0 8px 24px rgba(24, 24, 27, 0.12);
 
-  /* 尺寸 */
-  --side-w: 240px;
-  --side-w-collapsed: 72px;
+  /* ---- 尺寸骨架（ui-baseline v3 §二 实测）---- */
+  --side-w: 216px;
+  --side-w-collapsed: 64px;
   --side-margin: 0px;
-  --main-pad: 16px;
-  --gap-block: 12px;
+  --topbar-h: 64px;
+  --aux-w: 256px;
+  --main-pad: 12px; /* 主内容区 p12 */
+  --gap-block: 12px; /* 卡片网格 g12 */
+  --gap-card: 16px; /* 卡片内分区 */
+  --gap-page: 24px; /* 卡片网格间距（KPI 佈局） */
+  --ctrl-h: 36px; /* 按钮与输入框统一高 */
 
-  /* 动效：ease-out；宽度/高度先行，文字延迟 80ms 淡入；微动效 150–200ms */
+  /* ---- 动效：ease-out；宽高先行，文字延迟 80ms；微动效 150–200ms ---- */
   --dur-fast: 0.15s;
   --dur-med: 0.2s;
   --dur-slow: 0.28s;
   --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
   --label-delay: 0.08s;
 
-  /* 字体：沿用系统字体栈（不引入字体文件，见 ui-baseline v2 字体说明） */
-  --font-sans: 'PingFang SC', -apple-system, system-ui, 'Helvetica Neue', 'Microsoft YaHei', sans-serif;
+  /* ---- 字体：系统栈（PingFang SC / 微软雅黑回退；西文数字由系统提供）---- */
+  --font-sans: -apple-system, 'PingFang SC', 'Helvetica Neue', 'Microsoft YaHei', system-ui, sans-serif;
 
   color-scheme: light;
 }
 
 [data-theme='dark'] {
-  --bg: #0b0f14;
-  --surface: #111827;
-  --surface-glass: #0b0f14;
-  --border: rgba(255, 255, 255, 0.1);
-  --border-soft: rgba(255, 255, 255, 0.06);
-  --text: #f3f4f6;
-  --text-2: #9ca3af;
-  --text-3: #6b7280;
-  --primary-text: #93c5fd;
-  --primary-soft: rgba(59, 130, 246, 0.16);
-  --danger-soft: rgba(220, 38, 38, 0.16);
-  --blue-text: #93c5fd;
-  --blue-border: rgba(59, 130, 246, 0.4);
-  --green-text: #4ade80;
-  --green-soft: rgba(34, 197, 94, 0.14);
-  --green-border: rgba(34, 197, 94, 0.4);
-  --purple-text: #c084fc;
-  --purple-soft: rgba(168, 85, 247, 0.14);
-  --purple-border: rgba(168, 85, 247, 0.4);
-  --text-body: #d1d5db;
+  /* Surface（Dark）：以 1px 边框 #2A2A2E 分层，阴影减弱 */
+  --bg: #101012;
+  --surface: #1c1c1f;
+  --surface-glass: #101012;
+  --border: #2a2a2e;
+  --border-soft: #232327;
 
-  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.35);
-  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.55);
+  --text: #fafafa;
+  --text-body: #d4d4d8;
+  --text-2: #a1a1aa;
+  --text-3: #71717a;
+
+  /* 主色保持不变；soft 走半透明底衬 */
+  --primary-soft: rgba(86, 108, 140, 0.3);
+  --ring: #384858;
+
+  /* 语义色浅底转半透明、文本提亮（设计稿 §02 切换规则） */
+  --danger-soft: rgba(220, 38, 38, 0.18);
+  --danger-text: #f87171;
+  --up: #f87171;
+  --up-soft: rgba(220, 38, 38, 0.18);
+  --up-text: #f87171;
+  --down: #4ade80;
+  --down-soft: rgba(22, 163, 74, 0.18);
+  --down-text: #4ade80;
+  --warn-soft: rgba(217, 119, 6, 0.2);
+  --warn-text: #fbbf24;
+  --info-soft: rgba(37, 99, 235, 0.2);
+  --info-text: #60a5fa;
+
+  /* 项目色暗色提亮一档 */
+  --proj-slate: #7d94b5;
+  --proj-amber: #e8871e;
+  --proj-green: #34b463;
+  --proj-purple: #9d78f2;
+
+  --danger-soft-text: #f87171;
+
+  /* 过渡色沿用半透明 */
+  --blue-border: rgba(125, 148, 181, 0.4);
+  --green-border: rgba(52, 180, 99, 0.4);
+  --purple-border: rgba(157, 120, 242, 0.4);
+  --blue-text: #d4d4d8;
+  --green-text: #4ade80;
+  --purple-text: #c4b5fd;
+
+  --shadow-card: none; /* 深色静息不投影，靠边框分层 */
+  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-pop: 0 8px 24px rgba(0, 0, 0, 0.5);
 
   color-scheme: dark;
 }

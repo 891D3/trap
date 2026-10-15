@@ -601,7 +601,11 @@ func clickNoteCard(page *mygo.Page, title string) error {
 	_, err := page.Eval(fmt.Sprintf(`(() => {
 		const cards = [...document.querySelectorAll('.note-card')];
 		const card = cards.find((item) => item.querySelector('.note-card-title')?.textContent?.trim() === %q);
-		if (!card) throw new Error('note card not found: ' + %q);
+		if (!card) {
+			const titles = cards.map((item) => item.querySelector('.note-card-title')?.textContent);
+			const tabs = document.body.innerText.slice(0, 600);
+			throw new Error('note card not found: ' + %q + ' | cards=' + cards.length + ' titles=' + JSON.stringify(titles) + ' | page:' + tabs);
+		}
 		card.click();
 		return true;
 	})()`, title, title))
