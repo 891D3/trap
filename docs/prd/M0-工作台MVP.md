@@ -323,6 +323,14 @@ func (AppService) OpenDataDir(ctx) error
 ### 执行状态（随开发更新）
 
 - v1.1 状态：T1–T5 与 UI-aux 调整均完成（详见 git 历史）；T6（F4 快捷入口）未实施，被 v2.0 重构吸收进 R6。
+- 2026-10-15：v2.0 重构启动（用户确定「先设计定样式与功能再开发」；设计基线 ui-baseline v3 + PRD v2.0 + Work Contract 确认）。
+- 2026-10-15：R1 数据层 v2 完成（6b1c093）：projects 表 + todos 扩展 + ProjectService/TodoInput/Filter/Stats + 全量单测。
+- 2026-10-15：R2 令牌 v3 完成（a7c9328）：Slate/Zinc/语义双模式 token + 三态主题。
+- 2026-10-15：R3 壳重构完成（9907bf5 + 目检修复 cabc0b2）：侧边栏/顶栏/辅助区随视图映射/项目实体接入；用户目检通过（含收起态居中/指示条/顶栏 48px/窄屏贴顶 4 处修复）。
+- 2026-10-15：R4 数据看板完成（675b605）：KPI×4 + 待办卡 + 今日信息卡 + 今日聚焦辅助区（实数据）。
+- 2026-10-15：R5 待办重构完成（b340625）：快速创建（⌘Enter/#联想/时间解析/分类）+ 日期分组（过期并入今天）+ 行内编辑 + 月历/按属性/按项目/即将到来；新增 runTodoV2Flow E2E。
+- 2026-10-15：R6 信息记录换肤 + 快捷入口真实接入完成（ee37339）：QuickLinkService（白名单 Open）+ LinkView v3 + 新增 runLinkFlow E2E。
+- 2026-10-15：R7 收尾：全量门禁（go test -race/vet/generate/types/build:web）✓、E2E 全链路 ✓、`mygo build` 打包冒烟（Trap.app 启动稳定）✓、CHANGELOG 创建、待用户最终验收。
 - 2026-10-13：T1 完成；T3.0 完成；T3 壳完成、样式重构完成并提交（e8e6bb6，用户目检通过）。
 - 2026-10-13：T2 数据层完成（分支 `feature/m0-data-layer`）：迁移机制 + 四表 + `internal/store` + AppService 设置读写 + Go 单测全绿；用户已确认接受迁移 SQL 位于 `internal/store/migrations/`（go:embed 无法引包外目录）。
 - 2026-10-13：T3.1 设置真实接入完成（分支 `feature/m0-settings-integration`）：设置初始化、持久化、settings.changed 同步、中文错误提示与导出目录手动保存已接入；真实 macOS WKWebView E2E 已通过并提交。
