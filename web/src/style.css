@@ -70,7 +70,6 @@ input {
   flex-direction: column;
   padding: 18px 12px;
   background: var(--surface);
-  border-right: 1px solid var(--border);
   border-radius: var(--radius-side);
   box-shadow: var(--shadow-side);
   overflow: hidden;
@@ -417,7 +416,6 @@ input {
   flex-direction: column;
   overflow: hidden;
   background: var(--bg);
-  border-left: 1px solid var(--border);
 }
 
 /* v3 顶栏：64px 白底 = 标题+面包屑 + 搜索 + 操作组 */
@@ -570,9 +568,8 @@ input {
 }
 
 .aux-card {
-  padding: 16px;
-  background: var(--surface-glass);
-  border: 1px solid var(--border);
+  padding: 12px 0 0;
+  background: transparent;
   border-radius: var(--radius-card);
 }
 
@@ -834,15 +831,13 @@ input {
   gap: 8px;
   padding: 14px 16px;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   cursor: pointer;
-  transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+  transition: box-shadow var(--dur-fast) var(--ease);
 }
 
 .note-card:hover {
-  border-color: var(--ring);
   box-shadow: var(--shadow-hover);
 }
 
@@ -892,7 +887,6 @@ input {
   gap: 12px;
   padding: 14px 16px;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   cursor: pointer;
@@ -953,7 +947,6 @@ input {
   width: min(380px, calc(100vw - 48px));
   padding: 20px;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-pop);
   animation: view-in var(--dur-fast) var(--ease);
@@ -1007,7 +1000,6 @@ input {
   margin-bottom: 24px;
   padding: 20px;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
 }
@@ -1376,7 +1368,6 @@ input {
 /* ============ 辅助区·今日聚焦（v3 §5.2） ============ */
 .aux {
   background: var(--surface);
-  border-left: 1px solid var(--border);
   padding: 0 16px 16px;
   gap: 12px;
   overflow-y: auto;
@@ -1677,7 +1668,6 @@ input {
   min-width: 240px;
   padding: 6px;
   background: var(--surface);
-  border: 1px solid var(--border);
   border-radius: var(--radius-pop);
   box-shadow: var(--shadow-pop);
 }
@@ -2295,3 +2285,15 @@ input {
 .note-card-excerpt {
   display: none; /* v3 列表只显示标题 + 徽章/时间（ui-baseline §5.4 记录列表样式） */
 }
+
+/* 深色模式分层：以 1px #2A2A2E 边框替代阴影（设计稿 §02 Surface 规范） */
+[data-theme='dark'] .sidebar { border-right: 1px solid var(--border); }
+[data-theme='dark'] .main { border-left: 1px solid var(--border); }
+[data-theme='dark'] .aux { border-left: 1px solid var(--border); }
+[data-theme='dark'] .kpi-card,
+[data-theme='dark'] .dash-card,
+[data-theme='dark'] .link-card,
+[data-theme='dark'] .note-card,
+[data-theme='dark'] .note-editor-panel,
+[data-theme='dark'] .project-pop,
+[data-theme='dark'] .dialog { border: 1px solid var(--border); }
