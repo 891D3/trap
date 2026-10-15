@@ -18,7 +18,7 @@ import {
   type AppSettings,
   type ThemeSetting,
 } from '../api/app-settings';
-import { dashboardStats, listTodos, createTodo, updateTodoDone, removeTodo, type Todo } from '../api/todos';
+import { dashboardStats, listTodos, createTodo, updateTodo, updateTodoDone, removeTodo, type CreateTodoInput, type Todo } from '../api/todos';
 import type { DashboardStats } from '../mygo';
 import {
   createProject,
@@ -109,6 +109,15 @@ type AppStore = {
   todosLoading: boolean;
   todosError: string | null;
   addTodo: (title: string) => Promise<void>;
+  /** v2.0：带完整字段创建（分类/日期/项目），供待办快速创建卡使用。 */
+  addTodoFull: (input: CreateTodoInput) => Promise<Todo>;
+  /** v2.0：行内编辑保存（全量更新可编辑字段）。 */
+  editTodo: (id: number, input: CreateTodoInput) => Promise<Todo>;
+  /** 月历/按属性 点击的过滤态（辅助区 ↔ 列表卡联动；null = 清除）。 */
+  auxDateFilter: string | null; // yyyy-mm-dd（本地日期）
+  setAuxDateFilter: (d: string | null) => void;
+  auxCategoryFilter: string;
+  setAuxCategoryFilter: (c: string) => void;
   setTodoDone: (id: number, done: boolean) => Promise<void>;
   deleteTodo: (id: number) => Promise<void>;
   notes: NoteSummary[];
@@ -388,6 +397,29 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const addTodoFullAction = useCallback(
+    async (input: CreateTodoInput): Promise<Todo> => {
+      const created = await createTodo(input);
+      setTodos((current) => [...current.filter((todo) => todo.id !== created.id), created]);
+      setTodosError(null);
+      return created;
+    },
+    [],
+  );
+
+  const editTodoAction = useCallback(
+    async (id: number, input: CreateTodoInput): Promise<Todo> => {
+      const updated = await updateTodo(id, input);
+      setTodos((current) => current.map((todo) => (todo.id === updated.id ? updated : todo)));
+      setTodosError(null);
+      return updated;
+    },
+    [],
+  );
+
+  const [auxDateFilter, setAuxDateFilter] = useState<string | null>(null);
+  const [auxCategoryFilter, setAuxCategoryFilter] = useState('');
+
   const deleteTodo = useCallback(async (id: number): Promise<void> => {
     setTodosError(null);
     try {
@@ -524,6 +556,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     todosLoading,
     todosError,
     addTodo,
+    addTodoFull: addTodoFullAction,
+    editTodo: editTodoAction,
+    auxDateFilter,
+    setAuxDateFilter,
+    auxCategoryFilter,
+    setAuxCategoryFilter,
     setTodoDone,
     deleteTodo,
     notes,

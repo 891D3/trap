@@ -70,10 +70,12 @@ func runSettingsWebViewE2E() error {
 	appService := &service.AppService{}
 	todoService := &service.TodoService{}
 	noteService := &service.NoteService{}
+	projectService := &service.ProjectService{}
 	service.AttachStore(appService, db, dataDir)
 	service.AttachTodoStore(todoService, db)
 	service.AttachNoteStore(noteService, db)
-	mygo.Bind(appService, todoService, noteService)
+	service.AttachProjectStore(projectService, db)
+	mygo.Bind(appService, todoService, noteService, projectService)
 
 	flowDone := make(chan error, 1)
 	secondPageReady := make(chan *mygo.Page, 1)
@@ -267,18 +269,39 @@ func runTodoFlow(page, syncPage *mygo.Page, url string) error {
 		return fmt.Errorf("待办重载后未持久化: %w", err)
 	}
 
+	// v3：未完成列表不渲染已完成项（改为分组分区），完成状态改为在
+	// 「已完成」Tab 中断言（同步窗口同口径）。
+	clickTab := func(p *mygo.Page, label string) error {
+		_, err := p.Eval(fmt.Sprintf(`(() => {
+			const tab = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim().startsWith(%q));
+			if (!tab) throw new Error('tab not found: ' + %q);
+			tab.click();
+			return true;
+		})()`, label, label))
+		return err
+	}
 	if err := clickTodoCheckbox(page, "完成 E2E 待办"); err != nil {
 		return fmt.Errorf("完成待办: %w", err)
 	}
+	if err := clickTab(page, "已完成"); err != nil {
+		return fmt.Errorf("切已完成 Tab: %w", err)
+	}
 	if err := waitFor(page, `document.querySelector('button[aria-label="恢复 E2E 待办"]')?.getAttribute('aria-checked') === 'true'`, 10*time.Second); err != nil {
 		return fmt.Errorf("主窗口完成状态未更新: %w", err)
+	}
+	if err := clickTab(syncPage, "已完成"); err != nil {
+		return fmt.Errorf("切同步窗口已完成 Tab: %w", err)
 	}
 	if err := waitFor(syncPage, `document.querySelector('button[aria-label="恢复 E2E 待办"]')?.getAttribute('aria-checked') === 'true'`, 10*time.Second); err != nil {
 		return fmt.Errorf("todo.changed 未同步第二窗口完成状态: %w", err)
 	}
 
+	// 取消完成：在已完成列表点击恢复，随后切回全部 Tab 验证重新进入未完成分组。
 	if err := clickTodoCheckbox(page, "恢复 E2E 待办"); err != nil {
 		return fmt.Errorf("取消完成待办: %w", err)
+	}
+	if err := clickTab(page, "全部"); err != nil {
+		return fmt.Errorf("切回全部 Tab: %w", err)
 	}
 	if err := waitFor(page, `document.querySelector('button[aria-label="完成 E2E 待办"]')?.getAttribute('aria-checked') === 'false'`, 10*time.Second); err != nil {
 		return fmt.Errorf("取消完成状态未更新: %w", err)
@@ -692,15 +715,18 @@ func clickTodoCheckbox(page *mygo.Page, label string) error {
 
 func setInputAndPressEnter(page *mygo.Page, value string) error {
 	quoted := strconv.Quote(value)
+	// v3：待办快速创建是多行 textarea，Enter 仅换行，提交用 ⌘/Ctrl+Enter
+	// （PRD v2.0 拟定决策 7）。同步 setter 走 HTMLTextAreaElement 原型。
 	_, err := page.Eval(fmt.Sprintf(`(() => {
 		const input = document.querySelector('.todo-input');
 		if (!input) throw new Error('todo input not found');
-		const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+		const TagProto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement;
+		const setter = Object.getOwnPropertyDescriptor(TagProto.prototype, 'value')?.set;
 		if (!setter) throw new Error('input value setter not found');
 		input.focus();
 		setter.call(input, %s);
 		input.dispatchEvent(new Event('input', { bubbles: true }));
-		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true }));
 		return true;
 	})()`, quoted))
 	return err
@@ -773,4 +799,205 @@ func waitHTTP(url string, timeout time.Duration) error {
 		time.Sleep(100 * time.Millisecond)
 	}
 	return fmt.Errorf("本地服务 %s 在 %s 内未响应", url, timeout)
+}
+
+// runTodoV2Flow 覆盖 v2.0 待办扩展能力（PRD v2.0 验收 3）：
+//   - 时间短语「明天 15:00」→ 落库 due_date 且入「明天」分组；
+//   - # 项目联想 → project_id 持久化；行内编辑改标题保存；月历日期过滤。
+func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, projects *service.ProjectService) error {
+	if err := reloadToTodo(page, url); err != nil {
+		return fmt.Errorf("v2 流程: 重载待办页: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.todo-input')?.disabled === false`, 10*time.Second); err != nil {
+		return fmt.Errorf("v2 流程: 待办页未加载: %w", err)
+	}
+
+	// 种子项目（服务直建，验证联想与关联）。
+	project, err := projects.Add(context.Background(), "前端测试项目", "green")
+	if err != nil {
+		return fmt.Errorf("v2 流程: 种子项目: %w", err)
+	}
+
+	// 1) 时间短语解析：「明天 15:00 测试解析」。
+	page2 := page
+	if _, err := callSetter(page2, "明天 15:00 测试解析"); err != nil {
+		return fmt.Errorf("v2 流程: 输入时间短语: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.quick-chips')?.textContent?.includes('明天 15:00') === true`, 5*time.Second); err != nil {
+		return fmt.Errorf("v2 流程: 时间 chip 未出现: %w", err)
+	}
+	if err := pressMetaEnter(page2); err != nil {
+		return fmt.Errorf("v2 流程: 提交时间短语: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.todo-group-label')?.textContent?.includes('明天') === true`, 6*time.Second); err != nil {
+		return fmt.Errorf("v2 流程: 未进入明天分组: %w", err)
+	}
+	// 库内断言 due_date（按本机时区折算 UTC）。
+	loc := time.Local
+	parsed := time.Now().In(loc).AddDate(0, 0, 1)
+	expectedDue := time.Date(parsed.Year(), parsed.Month(), parsed.Day(), 15, 0, 0, 0, loc).UTC()
+	list, err := todos.List(context.Background(), store.TodoFilter{})
+	if err != nil {
+		return fmt.Errorf("v2 流程: 读库: %w", err)
+	}
+	var dueTodo *store.Todo
+	for i := range list {
+		if list[i].Title == "测试解析" {
+			dueTodo = &list[i]
+		}
+	}
+	if dueTodo == nil || dueTodo.DueDate == nil || *dueTodo.DueDate != expectedDue.Format(time.RFC3339) ||
+		dueTodo.Category != "work" {
+		return fmt.Errorf("v2 流程: due_date 断言失败, 实际 %+v", dueTodo)
+	}
+
+	// 2) # 项目联想：输入 #前端 → 点击浮层项 → ⌘Enter 提交。
+	if _, err := callSetter(page, "#前端 解析联想待办"); err != nil {
+		return fmt.Errorf("v2 流程: 输入 # 联想: %w", err)
+	}
+	if err := waitFor(page, `[...document.querySelectorAll('.project-pop-item')].some((item) => item.textContent?.includes('#前端测试项目'))`, 5*time.Second); err != nil {
+		return fmt.Errorf("v2 流程: 项目联想浮层未出现: %w", err)
+	}
+	if _, err := page.Eval(`(() => {
+		const item = [...document.querySelectorAll('.project-pop-item')].find((item) => item.textContent?.includes('#前端测试项目'));
+		if (!item) throw new Error('popover item not found');
+		item.click();
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("v2 流程: 点击联想项: %w", err)
+	}
+	if err := pressMetaEnter(page); err != nil {
+		return fmt.Errorf("v2 流程: 提交联想: %w", err)
+	}
+	list2, err := todos.List(context.Background(), store.TodoFilter{})
+	if err != nil {
+		return fmt.Errorf("v2 流程: 读库二: %w", err)
+	}
+	var linked *store.Todo
+	for i := range list2 {
+		if list2[i].Title == "解析联想待办" && list2[i].ProjectID != nil && *list2[i].ProjectID == project.ID {
+			linked = &list2[i]
+		}
+	}
+	if linked == nil {
+		return fmt.Errorf("v2 流程: 项目关联断言失败: %+v", list2)
+	}
+	// 待办行上出现 #项目 文本。
+	if err := waitFor(page, `[...document.querySelectorAll('.todo-project')].some((item) => item.textContent?.includes('#前端测试项目'))`, 6*time.Second); err != nil {
+		return fmt.Errorf("v2 流程: 条目项目名未显示: %w", err)
+	}
+
+	// 3) 行内编辑：点击「测试解析」标题 → 修改为「测试解析·改」→ 保存 → 库内断言。
+	clicked := false
+	for _, candidate := range []string{"测试解析", "解析联想待办"} {
+		_, err := page.Eval(fmt.Sprintf(`(() => {
+			const cell = [...document.querySelectorAll('.todo-text')].find((item) => item.textContent?.trim() === %q);
+			if (!cell) return false;
+			cell.click();
+			return true;
+		})()`, candidate))
+		if err == nil {
+			if ok, _ := mygo.EvalAs[bool](page, `document.querySelector('.todo-edit-input') !== null`); ok {
+				clicked = true
+				break
+			}
+		}
+	}
+	if !clicked {
+		return fmt.Errorf("v2 流程: 进入行内编辑失败")
+	}
+	if _, err := page.Eval(`(() => {
+		const input = document.querySelector('.todo-edit-input');
+		const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+		setter.call(input, '测试解析·改');
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("v2 流程: 编辑标题: %w", err)
+	}
+	if _, err := page.Eval(`(() => {
+		const btn = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === '保存');
+		if (!btn) throw new Error('save button not found');
+		btn.click();
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("v2 流程: 保存编辑: %w", err)
+	}
+	if err := waitFor(page, `[...document.querySelectorAll('.todo-text')].some((item) => item.textContent?.includes('测试解析·改'))`, 6*time.Second); err != nil {
+		return fmt.Errorf("v2 流程: 编辑未生效: %w", err)
+	}
+	list3, err := todos.List(context.Background(), store.TodoFilter{})
+	if err != nil {
+		return fmt.Errorf("v2 流程: 读库三: %w", err)
+	}
+	editedOK := false
+	for _, t := range list3 {
+		if t.Title == "测试解析·改" && t.Category == "work" {
+			editedOK = true
+		}
+	}
+	if !editedOK {
+		return fmt.Errorf("v2 流程: 编辑落库断言失败: %+v", list3)
+	}
+
+	// 4) 月历日期过滤：点击「明天」格（明天有 1 条带日期待办）→ 过滤 chip 出现。
+	if err := clickText(page, "明天"); err != nil {
+		return fmt.Errorf("v2 流程: 明天分组日不存在: %w", err)
+	}
+	// 通过月历格（值 = 明天日期号）点击。
+	tomorrowNum := time.Now().In(loc).AddDate(0, 0, 1).Format("2")
+	_, err = page.Eval(fmt.Sprintf(`(() => {
+		const cells = [...document.querySelectorAll('.aux-month-day')].filter((el) => !el.className.includes('is-out') && el.querySelector('.aux-month-num')?.textContent === %q && el.querySelector('.aux-month-dot') !== null);
+		const cell = cells.find((el) => !el.className.includes('is-today'));
+		if (!cell) throw new Error('tomorrow cell not found');
+		cell.click();
+		return true;
+	})()`, tomorrowNum))
+	if err != nil {
+		return fmt.Errorf("v2 流程: 点击月历明天格: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.list-filter-chips')?.querySelectorAll('.chip').length >= 2`, 6*time.Second); err != nil {
+		return fmt.Errorf("v2 流程: 日期过滤 chip 未出现: %w", err)
+	}
+	if _, err := page.Eval(`(() => {
+		const btn = document.querySelector('button[aria-label="清除日期过滤"]');
+		if (!btn) throw new Error('clear chip not found');
+		btn.click();
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("v2 流程: 清除日期过滤: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.list-filter-chips') === null || document.querySelector('.list-filter-chips')?.querySelector('[aria-label="清除日期过滤"]') === null`, 5*time.Second); err != nil {
+		return fmt.Errorf("v2 流程: 日期过滤未清除: %w", err)
+	}
+	return nil
+}
+
+// callSetter 向快速创建 textarea 写入文本（不提交）。
+func callSetter(page *mygo.Page, text string) (bool, error) {
+	return mygo.EvalAs[bool](page, fmt.Sprintf(`(() => {
+		const input = document.querySelector('.todo-input');
+		if (!input) throw new Error('todo input not found');
+		const TagProto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement;
+		const setter = Object.getOwnPropertyDescriptor(TagProto.prototype, 'value')?.set;
+		if (!setter) throw new Error('value setter not found');
+		input.focus();
+		setter.call(input, %s);
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+		return true;
+	})()`, strconv.Quote(text)))
+}
+
+// pressMetaEnter 在快速创建输入上以 Ctrl+Enter 提交（同 UI 行为）。
+func pressMetaEnter(page *mygo.Page) error {
+	_, err := page.Eval(`(() => {
+		const input = document.querySelector('.todo-input');
+		if (!input) throw new Error('todo input not found');
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', ctrlKey: true, bubbles: true, cancelable: true }));
+		return true;
+	})()`)
+	if err == nil {
+		time.Sleep(600 * time.Millisecond)
+	}
+	return err
 }
