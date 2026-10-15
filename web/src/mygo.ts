@@ -98,6 +98,30 @@ export interface ProjectProgress {
   total: number;
 }
 
+/** QuickLink 是一条快捷入口。 */
+export interface QuickLink {
+  id: number;
+  name: string;
+  /** URL 或本地工具路径 */
+  target: string;
+  /** 'url' | 'path' */
+  kind: string;
+  group?: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** QuickLinkChangeAction 表示快捷入口变更类型。 */
+export type QuickLinkChangeAction = "added" | "updated" | "deleted";
+
+/** QuickLinkChangedPayload 是 quick_link.changed 事件载荷。 */
+export interface QuickLinkChangedPayload {
+  action: QuickLinkChangeAction;
+  quickLink?: QuickLink;
+  quickLinkId?: number;
+}
+
 /** Settings 是设置页可见的应用级设置（map 到 settings 表的业务键）。 */
 export interface Settings {
   /** user.name */
@@ -303,6 +327,30 @@ export const ProjectService = {
   },
 } as const;
 
+/** QuickLinkService 暴露快捷入口 CRUD 与打开 typed IPC。 */
+export const QuickLinkService = {
+  /** Add 新增快捷入口（kind 由 target 形态判定）。 */
+  add(name: string, target: string, groupName: string): Promise<QuickLink> {
+    return call("QuickLinkService.Add", name, target, groupName);
+  },
+  /** Delete 删除并广播（前端二次确认由 UI 承担，服务层不做确认）。 */
+  delete(id: number): Promise<void> {
+    return call("QuickLinkService.Delete", id);
+  },
+  /** List 列出全部快捷入口（sort_order 升序）。 */
+  list(): Promise<QuickLink[]> {
+    return call("QuickLinkService.List");
+  },
+  /** Open 用系统默认方式打开目标；store 只有 kind 校验，真正打开在这里执行。 */
+  open(id: number): Promise<void> {
+    return call("QuickLinkService.Open", id);
+  },
+  /** Update 全量更新（name/target/kind 重判定/group/sortOrder）。 */
+  update(id: number, name: string, target: string, groupName: string, sortOrder: number): Promise<QuickLink> {
+    return call("QuickLinkService.Update", id, name, target, groupName, sortOrder);
+  },
+} as const;
+
 // ---- Events ----
 
 /** Events sent by the Go side. Subscribe with `events.name.on(listener)`. */
@@ -316,6 +364,8 @@ export const events = {
   noteChanged: event<NoteChangedPayload>("note.changed"),
   /** ProjectChanged 在项目成功写入后广播到所有 WebView。 */
   projectChanged: event<ProjectChangedPayload>("project.changed"),
+  /** QuickLinkChanged 在快捷入口成功写入后广播到所有 WebView。 */
+  quickLinkChanged: event<QuickLinkChangedPayload>("quick_link.changed"),
   /** TodoChanged 在待办成功写入后广播到所有 WebView。 */
   todoChanged: event<TodoChangedPayload>("todo.changed"),
 } as const;

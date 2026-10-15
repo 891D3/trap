@@ -19,6 +19,14 @@ import {
   type ThemeSetting,
 } from '../api/app-settings';
 import { dashboardStats, listTodos, createTodo, updateTodo, updateTodoDone, removeTodo, type CreateTodoInput, type Todo } from '../api/todos';
+import {
+  createLink,
+  listLinks,
+  openLink,
+  removeLink,
+  saveLink,
+  type QuickLink,
+} from '../api/links';
 import type { DashboardStats } from '../mygo';
 import {
   createProject,
@@ -42,6 +50,7 @@ import { subscribeSettingsChanged } from '../realtime/settings-events';
 import { subscribeTodoChanged } from '../realtime/todo-events';
 import { subscribeNoteChanged } from '../realtime/note-events';
 import { subscribeProjectChanged } from '../realtime/project-events';
+import { subscribeQuickLinkChanged } from '../realtime/quicklink-events';
 
 export type { ThemeSetting } from '../api/app-settings';
 export type { Todo } from '../api/todos';
@@ -50,27 +59,9 @@ export type { Project } from '../api/projects';
 
 /* ---------- 实体类型（T2 与 Go 侧对齐） ---------- */
 
-export type QuickLink = {
-  id: number;
-  name: string;
-  target: string;
-  kind: 'url' | 'path';
-  groupName: string;
-};
+export type { QuickLink } from '../api/links';
 
 export type ViewId = 'dashboard' | 'todo' | 'note' | 'stock' | 'link' | 'settings';
-
-/* ---------- 仍未接入 T4–T6 的 mock 数据 ---------- */
-
-const now = () => new Date().toISOString();
-
-let nextId = 100;
-
-const initialLinks: QuickLink[] = [
-  { id: 20, name: 'GitHub', target: 'https://github.com', kind: 'url', groupName: '开发' },
-  { id: 21, name: 'mygo 仓库', target: 'https://github.com/egoist/mygo', kind: 'url', groupName: '开发' },
-  { id: 22, name: 'npm', target: 'https://www.npmjs.com', kind: 'url', groupName: '开发' },
-];
 
 // v2 样式：取模板文件图标的色板（blue/green/orange/purple/pink-500），与图标块浅底搭配
 const avatarColors = ['#3b82f6', '#22c55e', '#f97316', '#a855f7', '#ec4899'];
@@ -129,9 +120,14 @@ type AppStore = {
   setNoteArchived: (id: number, archived: boolean) => Promise<void>;
   deleteNote: (id: number) => Promise<void>;
   exportNote: (id: number) => Promise<string>;
+  /** v2.0 R6：快捷入口真实服务（CRUD/分组/打开）。 */
   links: QuickLink[];
-  addLink: (name: string, target: string, groupName: string) => void;
-  deleteLink: (id: number) => void;
+  linksLoading: boolean;
+  linksError: string | null;
+  addLink: (name: string, target: string, groupName: string) => Promise<void>;
+  editLink: (id: number, name: string, target: string, groupName: string, sortOrder: number) => Promise<void>;
+  deleteLink: (id: number) => Promise<void>;
+  openLink: (id: number) => Promise<void>;
   doneToday: number;
   /** v2.0：项目列表（含待办计数）与 CRUD。 */
   projects: Project[];
@@ -263,7 +259,69 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [notes, setNotes] = useState<NoteSummary[]>([]);
   const [notesLoading, setNotesLoading] = useState(true);
   const [notesError, setNotesError] = useState<string | null>(null);
-  const [links, setLinks] = useState<QuickLink[]>(initialLinks);
+  const [links, setLinks] = useState<QuickLink[]>([]);
+  const [linksLoading, setLinksLoading] = useState(true);
+  const [linksError, setLinksError] = useState<string | null>(null);
+
+  const loadLinks = useCallback(async (showLoading: boolean): Promise<void> => {
+    if (showLoading) setLinksLoading(true);
+    try {
+      setLinks(await listLinks());
+      setLinksError(null);
+    } catch (error: unknown) {
+      setLinksError(toChineseError(error, '快捷入口加载失败，请稍后重试'));
+    } finally {
+      if (showLoading) setLinksLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeQuickLinkChanged(() => {
+      void loadLinks(false);
+    });
+    void loadLinks(true);
+    return unsubscribe;
+  }, [loadLinks]);
+
+  const addLinkAction = useCallback(
+    async (name: string, target: string, groupName: string): Promise<void> => {
+      try {
+        const created = await createLink(name, target, groupName);
+        setLinks((current) => [...current, created]);
+      } catch (error: unknown) {
+        const message = toChineseError(error, '快捷入口添加失败，请稍后重试');
+        throw new Error(message);
+      }
+    },
+    [],
+  );
+
+  const editLinkAction = useCallback(
+    async (id: number, name: string, target: string, groupName: string, sortOrder: number): Promise<void> => {
+      try {
+        const updated = await saveLink(id, name, target, groupName, sortOrder);
+        setLinks((current) => current.map((l) => (l.id === updated.id ? updated : l)));
+      } catch (error: unknown) {
+        const message = toChineseError(error, '快捷入口保存失败，请稍后重试');
+        throw new Error(message);
+      }
+    },
+    [],
+  );
+
+  const deleteLinkAction = useCallback(async (id: number): Promise<void> => {
+    try {
+      await removeLink(id);
+      setLinks((current) => current.filter((l) => l.id !== id));
+    } catch (error: unknown) {
+      const message = toChineseError(error, '快捷入口删除失败，请稍后重试');
+      throw new Error(message);
+    }
+  }, []);
+
+  const openLinkAction = useCallback(async (id: number): Promise<void> => {
+    await openLink(id);
+  }, []);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [projectsError, setProjectsError] = useState<string | null>(null);
@@ -583,11 +641,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     openProject: (id: number) => setProjectFilter(id),
     clearProjectFilter: () => setProjectFilter(null),
     links,
-    addLink: (name, target, groupName) => {
-      const kind = /^https?:\/\//i.test(target) ? ('url' as const) : ('path' as const);
-      setLinks((prev) => [{ id: nextId++, name, target, kind, groupName }, ...prev]);
-    },
-    deleteLink: (id) => setLinks((prev) => prev.filter((l) => l.id !== id)),
+    linksLoading,
+    linksError: linksError,
+    addLink: addLinkAction,
+    editLink: editLinkAction,
+    deleteLink: deleteLinkAction,
+    openLink: openLinkAction,
     doneToday,
   };
 

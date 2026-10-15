@@ -71,11 +71,13 @@ func runSettingsWebViewE2E() error {
 	todoService := &service.TodoService{}
 	noteService := &service.NoteService{}
 	projectService := &service.ProjectService{}
+	quickLinkService := &service.QuickLinkService{}
 	service.AttachStore(appService, db, dataDir)
 	service.AttachTodoStore(todoService, db)
 	service.AttachNoteStore(noteService, db)
 	service.AttachProjectStore(projectService, db)
-	mygo.Bind(appService, todoService, noteService, projectService)
+	service.AttachQuickLinkStore(quickLinkService, db)
+	mygo.Bind(appService, todoService, noteService, projectService, quickLinkService)
 
 	flowDone := make(chan error, 1)
 	secondPageReady := make(chan *mygo.Page, 1)
@@ -999,5 +1001,109 @@ func pressMetaEnter(page *mygo.Page) error {
 	if err == nil {
 		time.Sleep(600 * time.Millisecond)
 	}
+	return err
+}
+
+// runLinkFlow 覆盖快捷入口主链路（PRD 验收：URL 添加→点击跳转→持久化→分组）。
+// 说明：点击卡片会真实调用系统 open（打开一个浏览器标签），为用户可见行为的
+// 真实验证；断言不依赖浏览器窗口，仅断言服务无错与列表状态。
+func runLinkFlow(page *mygo.Page, url string, links *service.QuickLinkService) error {
+	if err := loadPageDocument(page, uniquePageURL(url)+"&e2eView=link"); err != nil {
+		return fmt.Errorf("link 流程: 加载快捷入口: %w", err)
+	}
+	if err := waitFor(page, `[...document.querySelectorAll('button')].some((item) => item.textContent?.trim() === '添加入口')`, 15*time.Second); err != nil {
+		return fmt.Errorf("link 流程: 等待视图: %w", err)
+	}
+
+	// 1) 通过 UI 添加 URL 入口（InputDialog 输入 + 添加按钮）。
+	if _, err := page.Eval(`(() => {
+		const btn = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === '添加入口');
+		if (!btn) throw new Error('add button not found');
+		btn.click();
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("link 流程: 打开添加弹层: %w", err)
+	}
+		if err := setDialogFields(page); err != nil {
+		return fmt.Errorf("link 流程: 填写弹层: %w", err)
+	}
+	if _, err := page.Eval(`(() => {
+		const btn = [...document.querySelectorAll('.dialog button')].find((item) => item.textContent?.trim() === '添加');
+		if (!btn) throw new Error('submit not found');
+		btn.click();
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("link 流程: 提交: %w", err)
+	}
+	if err := waitFor(page, `[...document.querySelectorAll('.link-name')].some((item) => item.textContent === 'GitHub Trap')`, 8*time.Second); err != nil {
+		return fmt.Errorf("link 流程: 新入口未显示: %w", err)
+	}
+
+	// 2) 服务层断言持久化 + kind 判定。
+	list, err := links.List(context.Background())
+	if err != nil {
+		return fmt.Errorf("link 流程: 读库: %w", err)
+	}
+	found := false
+	for _, l := range list {
+		if l.Name == "GitHub Trap" && l.Kind == store.KindURL && l.GroupName == "开发" {
+			found = true
+		}
+	}
+	if !found {
+		return fmt.Errorf("link 流程: 持久化断言失败: %+v", list)
+	}
+
+	// 3) 点击卡片真实打开（open 调系统浏览器；断言点击无 JS 错误 + toast 无错误）。
+	if _, err := page.Eval(`(() => {
+		const card = [...document.querySelectorAll('.link-card-main')].find((item) => item.textContent?.includes('GitHub Trap'));
+		if (!card) throw new Error('card not found');
+		card.click();
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("link 流程: 点击卡片: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('div.linkv2 [role="alert"]') === null`, 6*time.Second); err != nil {
+		return fmt.Errorf("link 流程: 打开报错: %w", err)
+	}
+
+	// 4) 删除（二次确认）→ 列表消失 + 库内消失。
+	if _, err := page.Eval(`(() => {
+		const del = document.querySelector('button[aria-label="删除 GitHub Trap"]');
+		if (!del) throw new Error('delete button not found');
+		del.click();
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("link 流程: 打开删除确认: %w", err)
+	}
+	if _, err := page.Eval(`(() => {
+		const btn = [...document.querySelectorAll('[role="dialog"] button')].find((item) => item.textContent?.trim() === '删除');
+		if (!btn) throw new Error('confirm delete not found');
+		btn.click();
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("link 流程: 确认删除: %w", err)
+	}
+	if err := waitFor(page, `[...document.querySelectorAll('.link-name')].every((item) => item.textContent !== 'GitHub Trap')`, 8*time.Second); err != nil {
+		return fmt.Errorf("link 流程: 删除后仍在: %w", err)
+	}
+	return nil
+}
+
+// setDialogFields 在 InputDialog 中填写三个字段（名称/URL/分组）。
+func setDialogFields(page *mygo.Page) error {
+	_, err := page.Eval(fmt.Sprintf(`(() => {
+		const setv = (label, value) => {
+			const input = [...document.querySelectorAll('.dialog input')].find((el) => el.closest('.field')?.querySelector('label')?.textContent === label);
+			if (!input) throw new Error('field not found: ' + label);
+			const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+			setter.call(input, value);
+			input.dispatchEvent(new Event('input', { bubbles: true }));
+		};
+		setv(" + strconv.Quote("名称") + ", " + strconv.Quote("GitHub Trap") + ");
+		setv(" + strconv.Quote("URL 或本地路径") + ", " + strconv.Quote("https://github.com/891D3/trap") + ");
+		setv(" + strconv.Quote("分组（可选）") + ", " + strconv.Quote("开发") + ");
+		return true;
+	})()`))
 	return err
 }

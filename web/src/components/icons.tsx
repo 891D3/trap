@@ -216,3 +216,11 @@ export const IconChevronDouble = ({ size = 16 }: IconProps) =>
       <path d="m11 6 6 6-6 6M5 6l6 6-6 6" />
     </>
   ));
+
+export const IconPencil = ({ size = 18 }: IconProps) =>
+  base(size, (
+    <>
+      <path d="m15 5 4 4L8 20H4v-4L15 5Z" />
+      <path d="m13 7 4 4" />
+    </>
+  ));

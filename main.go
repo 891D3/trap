@@ -22,7 +22,8 @@ func main() {
 	todos := &service.TodoService{}
 	notes := &service.NoteService{}
 	projects := &service.ProjectService{} // v2.0：项目实体（待办关联/侧栏列表）
-	mygo.Bind(app, todos, notes, projects)
+	links := &service.QuickLinkService{}  // v2.0 R6：快捷入口（CRUD/分组/打开）
+	mygo.Bind(app, todos, notes, projects, links)
 
 	mygo.App.WhenReady(func() {
 		// 数据库位置：userData 目录下的 trap.db（mygo.PathUserData 首次使用会创建目录）。
@@ -38,6 +39,7 @@ func main() {
 		service.AttachTodoStore(todos, db)
 		service.AttachNoteStore(notes, db)
 		service.AttachProjectStore(projects, db)
+		service.AttachQuickLinkStore(links, db)
 
 		mygo.NewWindow(mygo.WindowOptions{
 			Title:           "Trap",

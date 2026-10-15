@@ -2140,3 +2140,158 @@ input {
   font-size: 10px;
   color: var(--text-3);
 }
+
+/* ============ v3 快捷入口视图（ui-baseline §5.4 + PRD §4.5） ============ */
+.linkv2 {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.link-toolbar {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.link-group-title {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.link-grid.v3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.link-card.v3 {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 12px 14px;
+  transition: box-shadow var(--dur-fast) var(--ease);
+}
+
+.link-card.v3:hover {
+  box-shadow: var(--shadow-hover);
+}
+
+.link-card-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+
+.link-avatar.kind-url {
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+.link-avatar.kind-path {
+  background: var(--warn-soft);
+  color: var(--warn-text);
+}
+
+.link-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.link-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link-host {
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.link-card-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: none;
+  gap: 2px;
+}
+
+.link-card.v3:hover .link-card-actions {
+  display: flex;
+}
+
+.link-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  flex: none;
+}
+
+/* ============ v3 信息记录换肤（功能不动，视觉对齐 §5.4） ============ */
+
+/* 记录视图外层使用 v3 卡片化：编辑器面板与右侧列表均为 r16 白卡 */
+.note-editor-panel {
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: 16px 20px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* 右侧记录列表：单列堆叠，卡片 12px 圆角 */
+.note-grid {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.note-card {
+  border: none;
+  border-radius: var(--radius-item);
+  padding: 10px 12px;
+  box-shadow: none;
+}
+
+.note-card:hover {
+  border-color: transparent;
+  background: var(--border-soft);
+  box-shadow: none;
+}
+
+.note-card-title {
+  font-size: 13px;
+  color: var(--text-body);
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.note-card-excerpt {
+  display: none; /* v3 列表只显示标题 + 徽章/时间（ui-baseline §5.4 记录列表样式） */
+}
