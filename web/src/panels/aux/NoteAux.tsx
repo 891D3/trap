@@ -94,7 +94,7 @@ export function NoteAux({
               }
             })()}
           >
-            <IconPlus size={14} />
+            <IconPlus size={16} />
           </button>
           <button
             className="aux-mini-btn"
@@ -102,7 +102,7 @@ export function NoteAux({
             aria-label="收起最近笔记面板"
             onClick={onAuxCollapse}
           >
-            <IconPanelLeftOpen size={14} />
+            <IconPanelLeftOpen size={16} />
           </button>
         </div>
         {rows.map((n) => (

@@ -2886,7 +2886,8 @@ input {
 
 /* ---- 辅助区（最近笔记/常用标签/导出） ---- */
 .aux-note-recent {
-  padding: 14px 14px 12px;
+  /* 列表行区域距卡片边框 4px（行内距自行补回文本缩进） */
+  padding: 14px 4px 4px;
   background: var(--surface);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
@@ -2898,6 +2899,7 @@ input {
   justify-content: flex-end;
   gap: 6px;
   margin-bottom: 10px;
+  padding: 0 10px; /* 标题行保持 14px 视觉缩进（4 卡片 + 10） */
 }
 
 .aux-recent-head .aux-title-sm {
@@ -2926,7 +2928,7 @@ input {
   gap: 3px;
   width: 100%;
   text-align: left;
-  padding: 10px 7px;
+  padding: 10px 10px; /* 行区域贴到距卡片边框 4px */
   border-radius: var(--radius-item);
 }
 
