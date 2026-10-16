@@ -437,14 +437,23 @@ input {
 
 .topbar-title-group {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  gap: 10px;
   min-width: 0;
+}
+
+/* v4：标题左侧 3px 主色竖条（与侧栏 active 同语言） */
+.topbar-indicator {
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--primary);
+  flex: none;
 }
 
 .topbar .main-title {
   margin: 0;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
   line-height: 1.25;
 }
@@ -457,31 +466,6 @@ input {
   text-overflow: ellipsis;
 }
 
-.topbar-search {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 280px;
-  height: 32px;
-  margin: 0 auto;
-  padding: 0 12px;
-  border-radius: var(--radius-item);
-  background: var(--border-soft);
-  color: var(--text-3);
-}
-
-.topbar-search input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  color: var(--text-2);
-  font-size: 12px;
-}
-
-.topbar-search input::placeholder {
-  color: var(--text-3);
-}
 
 .topbar-actions {
   display: flex;
@@ -1886,6 +1870,11 @@ input {
   cursor: pointer;
 }
 
+.todo-category {
+  font-size: 11px;
+  flex: none;
+}
+
 .cat-text-personal { color: var(--warn-text); }
 .cat-text-work { color: var(--primary); }
 .cat-text-study { color: var(--warn); }
@@ -2046,12 +2035,20 @@ input {
 }
 
 .aux-month-day.is-today {
-  background: var(--primary);
+  background: transparent;
 }
 
+/* v4：今天 = 22px 主色圆形（15:269 今天圆 22x22 r999） */
 .aux-month-day.is-today .aux-month-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--primary);
   color: #fff;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .aux-month-day.is-selected:not(.is-today) .aux-month-num {
@@ -2059,13 +2056,21 @@ input {
   font-weight: 600;
 }
 
-.aux-month-day.is-selected:not(.is-today) {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--primary);
+/* v4：选中日 = 主色点（15:273 Frame #566C8C 4x4）；有事件的日期同理替换灰点 */
+.aux-month-day.is-selected .aux-month-dot {
+  background: var(--primary);
+}
+
+.aux-month-day.is-selected:not(.is-today):not(:has(.aux-month-dot))::after {
+  content: '';
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 4px;
+  height: 4px;
   border-radius: 999px;
-  width: 22px;
-  height: 22px;
-  margin: 0 auto;
+  background: var(--primary);
 }
 
 /* 过滤行（按属性/按项目） */
@@ -2365,6 +2370,14 @@ input {
   align-items: center;
   gap: 14px;
   flex: none;
+}
+
+/* v4：快速创建/行内编辑按钮 32px（p16,7 规格） */
+.quick-actions-right .btn,
+.todo-edit-buttons .btn {
+  height: 32px;
+  padding: 0 14px;
+  font-size: 12px;
 }
 
 .chip.is-preview {
@@ -2864,8 +2877,9 @@ input {
 /* ---- 辅助区（最近笔记/常用标签/导出） ---- */
 .aux-note-recent {
   padding: 14px 14px 12px;
-  background: var(--surface-glass);
+  background: var(--surface);
   border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
 }
 
 .aux-recent-head {

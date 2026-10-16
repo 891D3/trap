@@ -83,19 +83,9 @@ export function Topbar({ view, auxExpand }: TopbarProps) {
         </div>
       )}
       <div className="topbar-title-group">
+        <span className="topbar-indicator" />
         <h1 className="main-title">{meta.title}</h1>
         <span className="topbar-crumb">{meta.crumb}</span>
-      </div>
-
-      {/* M0 样式占位：全局检索后端不做（PRD v2.0 §1 范围外）。 */}
-      <div className="topbar-search">
-        <IconSearch />
-        <input
-          aria-label="全局搜索"
-          placeholder="搜索待办、记录、项目…"
-          disabled
-          title="全局搜索（后续版本开放）"
-        />
       </div>
 
       <div className="topbar-actions">

@@ -1,11 +1,35 @@
+/* 信息记录 v2：编辑器铺满文档卡（去除 Crepe frame 内框，PRD §3.5.3 验收 4） */
 .markdown-editor {
-  min-height: 360px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-  background: var(--card);
-  overflow: hidden;
+  min-height: 100%;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
 }
 
 .markdown-editor [data-milkdown-root] {
-  min-height: 360px;
+  min-height: 100%;
+}
+
+.markdown-editor .ProseMirror {
+  min-height: 100%;
+  padding: 0;
+  outline: none;
+  font-size: 14px;
+  line-height: 1.8;
+  color: var(--text-body);
+}
+
+.markdown-editor .ProseMirror > * {
+  max-width: 100%;
+}
+
+/* 占位与空态 */
+.markdown-editor .ProseMirror p.is-editor-empty:first-child::before,
+.markdown-editor .ProseMirror p.is-empty:first-child::before {
+  color: var(--text-3);
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
 }
