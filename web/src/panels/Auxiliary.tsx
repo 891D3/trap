@@ -24,7 +24,7 @@ export function Auxiliary({ view, onCollapse }: AuxiliaryProps) {
           onClick={onCollapse}
           style={{ position: 'absolute', top: 10, right: 10, zIndex: 5 }}
         >
-          <IconPanelLeftRightTransform />
+          <AuxCollapseIcon />
         </button>
       )}
       {view === 'todo' ? <TodoAux /> : <TodayFocus />}
@@ -32,7 +32,7 @@ export function Auxiliary({ view, onCollapse }: AuxiliaryProps) {
   );
 }
 
-import { IconChevronDouble } from '../components/icons';
-function IconPanelLeftRightTransform(): React.JSX.Element {
-  return <IconChevronDouble size={16} />;
+import { IconPanelLeftClose } from '../components/icons';
+function AuxCollapseIcon(): React.JSX.Element {
+  return <IconPanelLeftClose />;
 }

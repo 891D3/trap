@@ -4,7 +4,7 @@
 // 主题切换按钮循环 system → light → dark（与设置页选项一致；持久化经 settings）。
 import type { ThemeSetting, ViewId } from '../state/app-store';
 import { useStore } from '../state/app-store';
-import { IconBell, IconChevronDouble, IconFilter, IconMonitor, IconMoon, IconSearch, IconSun } from '../components/icons';
+import { IconBell, IconFilter, IconMonitor, IconMoon, IconPanelLeftOpen, IconSearch, IconSun } from '../components/icons';
 
 export const VIEW_TITLE: Record<ViewId, { title: string; crumb: string }> = {
   dashboard: { title: '数据看板', crumb: '个人工作台 / 数据看板' },
@@ -85,7 +85,7 @@ export function Topbar({ view, auxExpand }: TopbarProps) {
             title="展开辅助区"
             onClick={auxExpand.onExpand}
           >
-            <IconChevronDouble />
+            <IconPanelLeftOpen />
           </button>
         )}
       </div>

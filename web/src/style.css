@@ -75,13 +75,7 @@ input {
   overflow: hidden;
   transition: width var(--dur-slow) var(--ease);
 }
-
-/* 收起态悬停：临时展开覆盖中栏（不挤占布局） */
-.side-rail.is-collapsed:hover .sidebar {
-  width: var(--side-w);
-  box-shadow: var(--shadow-pop);
-  z-index: 30;
-}
+/* v3 目检修正：收起即为收起；展开/收起一律经按钮点击切换，不再悬停自动展开 */
 
 .side-label {
   white-space: nowrap;
@@ -91,7 +85,7 @@ input {
 }
 
 /* 收起且未悬停：文字零宽隐藏，图标居中；悬停展开时文字延迟 80ms 淡入 */
-.side-rail.is-collapsed:not(:hover) .side-label {
+.side-rail.is-collapsed .side-label {
   opacity: 0;
   width: 0;
   min-width: 0;
@@ -99,7 +93,7 @@ input {
   transition: none;
 }
 
-.side-rail.is-collapsed:not(:hover) .side-item {
+.side-rail.is-collapsed .side-item {
   justify-content: center;
   gap: 0;
   padding-left: 0;
@@ -108,11 +102,11 @@ input {
 
 /* 收起态：左侧 3px 指示条隐藏，避免把图标挤离垂直中线（收起后仅保留图标） */
 /* 收起态：项目行同样居中（仅保留色点） */
-.side-rail.is-collapsed:not(:hover) .side-project-row {
+.side-rail.is-collapsed .side-project-row {
   justify-content: center;
 }
 
-.side-rail.is-collapsed:not(:hover) .side-project {
+.side-rail.is-collapsed .side-project {
   justify-content: center;
   padding-left: 0;
   padding-right: 0;
@@ -120,17 +114,17 @@ input {
   gap: 0;
 }
 
-.side-rail.is-collapsed:not(:hover) .side-user {
+.side-rail.is-collapsed .side-user {
   justify-content: center;
 }
 
 /* 收起且未悬停：收起按钮隐藏（仅图标保留头像与导航图标） */
-.side-rail.is-collapsed:not(:hover) .side-collapse-btn {
+.side-rail.is-collapsed .side-collapse-btn {
   display: none;
 }
 
 /* 收起态：用户文本列整体移出布局（flex:1 空壳会占据宽度使头像偏左） */
-.side-rail.is-collapsed:not(:hover) .side-user-line {
+.side-rail.is-collapsed .side-user-line {
   display: none;
 }
 
@@ -394,7 +388,7 @@ input {
 }
 
 /* 收起态下徽标角标隐藏（文字之后统一淡出） */
-.side-rail.is-collapsed:not(:hover) .side-badge {
+.side-rail.is-collapsed .side-badge {
   display: none;
 }
 
