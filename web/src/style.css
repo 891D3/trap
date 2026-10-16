@@ -2907,7 +2907,7 @@ input {
 .aux-add-fab {
   position: absolute;
   top: 10px;
-  right: 44px;
+  right: 44px; /* 收起钮 right:10 宽 28 → 间距 6px */
   z-index: 5;
 }
 
@@ -2922,11 +2922,15 @@ input {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-item);
   color: var(--text-2);
   background: var(--border-soft);
+}
+
+.aux-mini-btn:hover {
+  color: var(--text);
 }
 
 .aux-mini-plus { font-size: 14px; line-height: 1; }

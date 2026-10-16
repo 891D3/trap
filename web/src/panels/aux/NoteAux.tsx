@@ -87,7 +87,7 @@ export function NoteAux(_props: { onAuxCollapse?: () => void }): React.JSX.Eleme
           }
         })()}
       >
-        <IconPlus size={16} />
+        <IconPlus size={18} />
       </button>
 
       {/* 最近笔记卡 */}
