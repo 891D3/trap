@@ -194,6 +194,18 @@ export function TodoView() {
     return [...list].sort((a, b) => ((a.completedAt ?? '') < (b.completedAt ?? '') ? 1 : -1));
   }, [todos, auxCategoryFilter, projectFilter]);
 
+  // 分组头格式（设计稿 15:11）：「今天 · 10月15日 周四 · N 项」。
+  const WEEK_CN = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  const groupLabel = (key: string, label: string): string => {
+    const base = new Date();
+    if (key === 'today') return `今天 · ${base.getMonth() + 1}月${base.getDate()}日 ${WEEK_CN[base.getDay()]}`;
+    if (key === 'tomorrow') {
+      const t = new Date(base.getTime() + 86400000);
+      return `明天 · ${t.getMonth() + 1}月${t.getDate()}日 ${WEEK_CN[t.getDay()]}`;
+    }
+    return label;
+  };
+
   const groupsForTab = (): Array<{ key: string; label: string; dot: string; items: Todo[] }> => {
     if (tab === 'today') {
       // 单独「今天」Tab：仅今天组（口径 = 过期并入今天，红色组点警示）。
@@ -206,7 +218,9 @@ export function TodoView() {
       { key: 'tomorrow', label: '明天', dot: 'dot-blue', items: groups.tomorrow },
       { key: 'later', label: '以后', dot: 'dot-slate', items: groups.later },
       { key: 'none', label: '未安排', dot: 'dot-gray', items: groups.none },
-    ].filter((g) => g.items.length > 0);
+    ]
+      .map((g) => ({ ...g, label: groupLabel(g.key, g.label) }))
+      .filter((g) => g.items.length > 0);
   };
 
   // ⌘/Ctrl+K：聚焦快速创建输入（v1.1 确认决策保留）。
@@ -387,7 +401,7 @@ export function TodoView() {
                 <div className="todo-group-head">
                   <span className={`group-dot ${g.dot}`} />
                   <span className="todo-group-label">
-                    {g.label}{g.key === 'today' && tab === 'today' ? '' : ` · ${g.items.length} 项`}
+                    {g.label} · {g.items.length} 项
                   </span>
                 </div>
                 <div className="todo-group-divider" />
@@ -465,9 +479,11 @@ function TodoRow(props: {
       <button className="todo-text" onClick={() => setEditingId(todo.id)}>
         {todo.title}
       </button>
-      {project && (
+      {project ? (
         <span className={`todo-project proj-text-${project.color}`}>#{project.name}</span>
-      )}
+      ) : todo.category ? (
+        <span className={`todo-category cat-text-${todo.category}`}>{CATEGORY_LABEL[todo.category] ?? ''}</span>
+      ) : null}
       <span className="todo-when">{whenLabel(todo)}</span>
       <button
         className="btn-icon"

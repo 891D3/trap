@@ -1886,6 +1886,10 @@ input {
   cursor: pointer;
 }
 
+.cat-text-personal { color: var(--warn-text); }
+.cat-text-work { color: var(--primary); }
+.cat-text-study { color: var(--warn); }
+
 .proj-text-slate { color: var(--proj-slate); }
 .proj-text-amber { color: var(--proj-amber); }
 .proj-text-green { color: var(--proj-green); }
@@ -2050,8 +2054,18 @@ input {
   font-weight: 700;
 }
 
+.aux-month-day.is-selected:not(.is-today) .aux-month-num {
+  color: var(--primary);
+  font-weight: 600;
+}
+
 .aux-month-day.is-selected:not(.is-today) {
-  background: var(--primary-soft);
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--primary);
+  border-radius: 999px;
+  width: 22px;
+  height: 22px;
+  margin: 0 auto;
 }
 
 /* 过滤行（按属性/按项目） */
@@ -2710,11 +2724,12 @@ input {
   height: 26px;
   width: 26px;
   border-radius: 6px;
+  background: var(--border-soft);
   color: var(--text-2);
 }
 
 .spark-action:hover {
-  background: var(--border-soft);
+  background: var(--slate-200);
   color: var(--text);
 }
 

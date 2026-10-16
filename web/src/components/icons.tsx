@@ -224,3 +224,11 @@ export const IconPencil = ({ size = 18 }: IconProps) =>
       <path d="m13 7 4 4" />
     </>
   ));
+
+export const IconCode = ({ size = 16 }: IconProps) =>
+  base(size, (
+    <>
+      <path d="m8.5 7-4 5 4 5" />
+      <path d="m15.5 7 4 5-4 5" />
+    </>
+  ));

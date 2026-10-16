@@ -6,7 +6,7 @@
 // 数据全部经 NoteService v2 typed IPC（N1），组件不触碰 IPC 细节。
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ConfirmDialog } from '../../components/dialogs';
-import { IconCalendar, IconNote, IconPencil, IconPlus, IconTrash } from '../../components/icons';
+import { IconCalendar, IconCode, IconNote, IconPlus, IconTrash } from '../../components/icons';
 import {
   createNote,
   deleteNote,
@@ -381,7 +381,7 @@ export function NoteView() {
                     aria-label={preview ? '切换到编辑' : '切换到预览'}
                     onClick={() => setPreview((p) => !p)}
                   >
-                    {preview ? <IconPencil size={16} /> : <IconNote size={16} />}
+                    {preview ? <IconCode size={16} /> : <IconNote size={16} />}
                   </button>
                   <button
                     className="btn-icon"
