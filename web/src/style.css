@@ -1630,11 +1630,12 @@ input {
   display: flex;
   flex-direction: column;
   gap: var(--gap-block);
+  flex: 1;
   min-height: 0;
 }
 
-/* 快速创建卡 */
-.quick-create { padding: 14px 16px; }
+/* 快速创建卡（固定高度，不参与伸缩） */
+.quick-create { padding: 14px 16px; flex: none; }
 
 .quick-hint {
   font-size: 11px;
@@ -1789,7 +1790,14 @@ input {
 }
 
 /* 列表卡 */
-.todo-list-card { padding: 14px 0 12px; min-height: 320px; }
+.todo-list-card {
+  padding: 14px 0 12px;
+  flex: 1; /* 撑满剩余高度（与视图底部齐平） */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
 
 .list-tabs { padding: 0 16px; }
 
