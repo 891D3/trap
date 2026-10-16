@@ -12,6 +12,7 @@ import (
 	"log"
 	"path/filepath"
 
+	"github.com/891D3/trap/internal/onboarding"
 	"github.com/891D3/trap/internal/service"
 	"github.com/891D3/trap/internal/store"
 	"github.com/egoist/mygo"
@@ -26,11 +27,19 @@ func main() {
 	mygo.Bind(app, todos, notes, projects, links)
 
 	mygo.App.WhenReady(func() {
-		// 数据库位置：userData 目录下的 trap.db（mygo.PathUserData 首次使用会创建目录）。
-		userDir, err := mygo.App.Path(mygo.PathUserData)
+		// 数据目录策略（Onboarding D1）：统一 ~/.trap；存量 userData 自动迁移
+		//（失败回退旧路径，不阻塞启动）。
+		ob, err := onboarding.Resolve(context.Background())
 		if err != nil {
-			log.Fatalf("解析用户数据目录失败: %v", err)
+			log.Printf("数据目录解析警告: %v", err)
 		}
+		if ob.Migrated {
+			log.Printf("数据已迁移至 %s（旧库备份为 %s.bak-migrated）", ob.Dir, ob.LegacyPath)
+		} else if ob.Fallback {
+			log.Printf("数据目录回退为 %s（迁移失败，请检查权限）", ob.Dir)
+		}
+		userDir := ob.Dir
+
 		db, err := store.Open(context.Background(), filepath.Join(userDir, "trap.db"))
 		if err != nil {
 			log.Fatalf("打开数据库失败: %v", err)
@@ -46,6 +55,12 @@ func main() {
 		// 有变动时广播 note.changed，前端刷新灵感流。
 		if _, err := notes.SweepSparks(context.Background()); err != nil {
 			log.Printf("灵感清扫失败（不阻塞启动）: %v", err)
+		}
+
+		// Onboarding D2 存量兜底：旧安装（有 user.name 但无 initialized 标记）
+		// 静默补标记，避免升级后误显示初始化页。
+		if legacyFillErr := service.BackfillInitialized(context.Background(), db); legacyFillErr != nil {
+			log.Printf("初始化标记兜底失败（不阻塞启动）: %v", legacyFillErr)
 		}
 
 		mygo.NewWindow(mygo.WindowOptions{

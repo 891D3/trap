@@ -16,7 +16,19 @@ const (
 	KeyUserAvatar   SettingsKey = "user.avatar_path" // 头像文件路径
 	KeyAppTheme     SettingsKey = "app.theme"        // 主题：system/light/dark
 	KeyAppExportDir SettingsKey = "app.export_dir"   // 信息记录导出目录
+	// KeyAppInitialized 是首次安装初始化的完成标记（Onboarding D2）。
+	// 判定权威：存在且为 "true" → 已初始化；存量用户由启动 sweep 兜底补写。
+	KeyAppInitialized SettingsKey = "app.initialized"
 )
+
+// IsInitialized 读取初始化标记（读不到/非 true 均视为未初始化）。
+func (db *DB) IsInitialized(ctx context.Context) (bool, error) {
+	kv, err := db.GetSettings(ctx)
+	if err != nil {
+		return false, err
+	}
+	return kv[string(KeyAppInitialized)] == "true", nil
+}
 
 // GetSettings 读取全部键值对；空表返回空 map（非 nil）。
 func (db *DB) GetSettings(ctx context.Context) (map[string]string, error) {

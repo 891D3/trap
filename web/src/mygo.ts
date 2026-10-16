@@ -32,6 +32,13 @@ export interface ExportResult {
   files: string[];
 }
 
+/** InitializeInput 是初始化页提交的字段（用户名必填；其余可选有默认）。 */
+export interface InitializeInput {
+  name: string;
+  exportDir?: string;
+  theme?: string;
+}
+
 /** Note 是一条信息记录的完整实体。 */
 export interface Note {
   id: number;
@@ -272,6 +279,18 @@ export const AppService = {
   /** GetSettings 读取全部设置并映射为 Settings。 */
   getSettings(): Promise<Settings> {
     return call("AppService.GetSettings");
+  },
+  /**
+   * Initialize 完成首次初始化：单事务原子写入 用户名/导出目录/主题/initialized
+   * 四键，并广播 settings.changed（Onboarding 验收 4）。
+   * 重复初始化幂等（再次写入覆盖同值）。
+   */
+  initialize(in_: InitializeInput): Promise<Settings> {
+    return call("AppService.Initialize", in_);
+  },
+  /** IsInitialized 读取首次安装初始化标记（Onboarding D2；读不到 = 未初始化）。 */
+  isInitialized(): Promise<boolean> {
+    return call("AppService.IsInitialized");
   },
   /** Ping 连通性自检：验证 mygo typed IPC 端到端链路。 */
   ping(): Promise<string> {

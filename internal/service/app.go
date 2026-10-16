@@ -9,6 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"strings"
 
 	"github.com/891D3/trap/internal/store"
 	"github.com/egoist/mygo"
@@ -46,6 +48,70 @@ type AppService struct {
 
 // Ping 连通性自检：验证 mygo typed IPC 端到端链路。
 func (s *AppService) Ping() string { return "pong" }
+
+// IsInitialized 读取首次安装初始化标记（Onboarding D2；读不到 = 未初始化）。
+func (s *AppService) IsInitialized(ctx context.Context) (bool, error) {
+	st, err := s.ready()
+	if err != nil {
+		return false, err
+	}
+	return st.IsInitialized(ctx)
+}
+
+// BackfillInitialized 给存量安装静默补 initialized 标记（Onboarding 验收 5）：
+// settings 已有 user.name（老用户）但缺标记 → 补 true；全新安装（无 user.name）
+// 不动（留给初始化页判定）。
+func BackfillInitialized(ctx context.Context, st *store.DB) error {
+	kv, err := st.GetSettings(ctx)
+	if err != nil {
+		return err
+	}
+	if kv[string(store.KeyAppInitialized)] == "true" || kv[string(store.KeyUserName)] == "" {
+		return nil
+	}
+	return st.SetSettings(ctx, map[string]string{string(store.KeyAppInitialized): "true"})
+}
+
+// InitializeInput 是初始化页提交的字段（用户名必填；其余可选有默认）。
+type InitializeInput struct {
+	Name      string `json:"name"`
+	ExportDir string `json:"exportDir,omitempty"`
+	Theme     string `json:"theme,omitempty"`
+}
+
+// Initialize 完成首次初始化：单事务原子写入 用户名/导出目录/主题/initialized
+// 四键，并广播 settings.changed（Onboarding 验收 4）。
+// 重复初始化幂等（再次写入覆盖同值）。
+func (s *AppService) Initialize(ctx context.Context, in InitializeInput) (Settings, error) {
+	st, err := s.ready()
+	if err != nil {
+		return Settings{}, err
+	}
+	name := strings.TrimSpace(in.Name)
+	if name == "" {
+		return Settings{}, fmt.Errorf("service: 用户名不能为空")
+	}
+	theme := in.Theme
+	if theme != ThemeLight && theme != ThemeDark {
+		theme = ThemeSystem // 非法值归 system
+	}
+	kv := map[string]string{
+		string(store.KeyUserName):        name,
+		string(store.KeyAppTheme):        theme,
+		string(store.KeyAppInitialized):  "true",
+	}
+	if dir := strings.TrimSpace(in.ExportDir); dir != "" {
+		kv[string(store.KeyAppExportDir)] = dir
+	}
+	if err := st.SetSettings(ctx, kv); err != nil {
+		return Settings{}, err
+	}
+	out := Settings{Name: name, Theme: theme, ExportDir: kv[string(store.KeyAppExportDir)], DataDir: s.dataDir}
+	if err := SettingsChanged.Broadcast(out); err != nil {
+		log.Printf("service: 广播 settings.changed 失败（数据已落库）: %v", err)
+	}
+	return out, nil
+}
 
 // AttachStore 注入数据层；由 main 在 WhenReady 打开数据库后调用。
 // 这是包级函数而非 AppService 方法，避免被 mygo 自动绑定为 IPC 接口。
