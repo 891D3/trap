@@ -2,7 +2,7 @@
 //   用户信息区（头像+姓名+副标+收起按钮）→「工作台」菜单（5 项，待办带角标，
 //   股票看台占位）→「项目」列表（色点+名称+计数+新建/编辑）→ 底部「设置」。
 // 导航 active 态用左侧 3px 主色指示条（CSS ::before），禁止色块高亮。
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   IconDashboard,
@@ -58,6 +58,37 @@ export function Sidebar({ view, collapsed, onSelectView, onToggleCollapsed }: Si
   const [draft, setDraft] = useState<ProjectDraft | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Project | null>(null);
 
+  // ---- 悬停展开（v1 已确认交互：收起态悬停临时展开为覆盖层）----
+  // 修正目检问题的口径：点击「收起」时鼠标就在侧栏内，若立即允许悬停展开
+  // 会看起来「没收上」。因此收起后进入抑制态，直到鼠标离开侧栏才恢复悬停
+  // 展开；展开/收起按钮点击本身始终即时生效。
+  const [hoverOpen, setHoverOpen] = useState(false);
+  const suppressHover = useRef(false);
+
+  // 实际渲染态：收起（64px 窄栏）、悬停展开（64 定位 + 216 覆盖层）、展开三种。
+  const railClass = collapsed
+    ? hoverOpen
+      ? 'side-rail is-hover-open'
+      : 'side-rail is-collapsed'
+    : 'side-rail';
+
+  const handleToggle = (): void => {
+    if (!collapsed) {
+      suppressHover.current = true; // 刚收起：抑制悬停展开
+      setHoverOpen(false);
+    }
+    onToggleCollapsed();
+  };
+
+  const handleMouseEnter = (): void => {
+    if (collapsed && !suppressHover.current) setHoverOpen(true);
+  };
+
+  const handleMouseLeave = (): void => {
+    suppressHover.current = false; // 离开侧栏后恢复悬停展开资格
+    setHoverOpen(false);
+  };
+
   const undoneCount = todos.filter((todo) => !todo.done).length;
 
   const submitDraft = async (): Promise<void> => {
@@ -75,7 +106,11 @@ export function Sidebar({ view, collapsed, onSelectView, onToggleCollapsed }: Si
   };
 
   return (
-    <div className={`side-rail${collapsed ? ' is-collapsed' : ''}`}>
+    <div
+      className={railClass}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <aside className="sidebar">
         {/* 用户信息区：头像 44 + 姓名/副标 + 收起按钮（v3 在顶部，不落底部）。 */}
         <div className="side-user">
@@ -86,7 +121,7 @@ export function Sidebar({ view, collapsed, onSelectView, onToggleCollapsed }: Si
           </div>
           <button
             className="side-collapse-btn"
-            onClick={onToggleCollapsed}
+            onClick={handleToggle}
             title={collapsed ? '展开侧栏' : '收起侧栏'}
             aria-label={collapsed ? '展开侧栏' : '收起侧栏'}
           >

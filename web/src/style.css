@@ -75,7 +75,19 @@ input {
   overflow: hidden;
   transition: width var(--dur-slow) var(--ease);
 }
-/* v3 目检修正：收起即为收起；展开/收起一律经按钮点击切换，不再悬停自动展开 */
+/* v3 目检修正：收起即为收起；悬停展开恢复，但点击收起后进入抑制态
+   （鼠标离开侧栏前不再自动展开），展开/收起按钮点击始终即时生效。 */
+
+/* 悬停展开覆盖层：布局保持 64px 定位，面板以绝对定位 216px 展开 */
+.side-rail.is-hover-open {
+  width: var(--side-w-collapsed);
+}
+
+.side-rail.is-hover-open .sidebar {
+  width: var(--side-w);
+  box-shadow: var(--shadow-pop);
+  z-index: 30;
+}
 
 .side-label {
   white-space: nowrap;
