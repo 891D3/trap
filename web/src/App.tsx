@@ -53,6 +53,9 @@ export function App() {
 
   return (
     <div className="app">
+      {/* 标题栏条（红绿灯之右）：项目标签页 + 可拖动窗口（TitleBarStyle=hidden） */}
+      <TitleStrip view={view} />
+      <div className="app-body">
       <Sidebar
         view={view}
         collapsed={narrow ? true : collapsed}
@@ -71,6 +74,7 @@ export function App() {
         {view === 'settings' && <SettingsView />}
         {view === 'stock' && <StockView />}
       </MainArea>
+      </div>
 
       {/* 宽屏：辅助区常驻挂载以支持与侧栏同套宽度动画 */}
       {auxEnabled(view) && !narrow && (
@@ -97,3 +101,42 @@ export function App() {
 }
 
 const VIEW_IDS = new Set<ViewId>(['dashboard', 'todo', 'note', 'stock', 'link', 'settings']);
+
+/** 标题栏条：红绿灯右侧为项目标签页；其余区域负责拖动窗口（--app-region: drag）。 */
+function TitleStrip({ view }: { view: ViewId }): React.JSX.Element {
+  const { projects, projectTabs, projectFilter, openProject, closeProjectTab } = useStore();
+  const tabs = projectTabs
+    .map((id) => projects.find((p) => p.id === id))
+    .filter((p): p is NonNullable<typeof p> => p != null);
+  void view;
+  return (
+    <div className="titlebar">
+      <div className="titlebar-tabs">
+        {tabs.length === 0 && <span className="titlebar-hint">Trap</span>}
+        {tabs.map((p) => (
+          <button
+            key={p.id}
+            className={`topbar-tab${projectFilter === p.id ? ' is-active' : ''}`}
+            onClick={() => openProject(p.id)}
+            title={p.name}
+          >
+            <span className={`side-dot proj-${p.color}`} />
+            <span className="topbar-tab-name">{p.name}</span>
+            <span
+              className="topbar-tab-close"
+              role="button"
+              aria-label={`关闭标签 ${p.name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                closeProjectTab(p.id);
+              }}
+            >
+              ×
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="titlebar-drag" style={{ flex: 1, height: '100%' }} />
+    </div>
+  );
+}
