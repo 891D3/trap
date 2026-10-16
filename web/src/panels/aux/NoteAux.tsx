@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { copyNoteRichText, exportNotes, listNotesV2 } from '../../api/notes';
 import { toChineseError } from '../../api/app-settings';
-import { IconPanelLeftClose, IconPlus } from '../../components/icons';
+import { IconPanelLeftOpen, IconPlus } from '../../components/icons';
 import { useStore } from '../../state/app-store';
 
 /** 相对时间（灵感/最近笔记 meta 用）。 */
@@ -102,7 +102,7 @@ export function NoteAux({
             aria-label="收起最近笔记面板"
             onClick={onAuxCollapse}
           >
-            <IconPanelLeftClose size={15} />
+            <IconPanelLeftOpen size={15} />
           </button>
         </div>
         {rows.map((n) => (
