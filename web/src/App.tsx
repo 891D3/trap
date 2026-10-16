@@ -72,8 +72,13 @@ export function App() {
         {view === 'stock' && <StockView />}
       </MainArea>
 
-      {showAux && !narrow && (
-        <Auxiliary view={view} onCollapse={() => setAuxCollapsed(true)} />
+      {/* 宽屏：辅助区常驻挂载以支持与侧栏同套宽度动画 */}
+      {auxEnabled(view) && !narrow && (
+        <Auxiliary
+          view={view}
+          collapsed={auxCollapsed}
+          onCollapse={() => setAuxCollapsed(true)}
+        />
       )}
       {showAux && narrow && (
         <>

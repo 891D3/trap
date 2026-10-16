@@ -8,27 +8,31 @@ import { TodayFocus } from './aux/TodayFocus';
 
 type AuxiliaryProps = {
   view: ViewId;
-  /** 收起辅助区（App 层控制显隐）。 */
+  /** 当前是否收起（与左侧侧栏同套宽过渡动画）。 */
+  collapsed?: boolean;
+  /** 收起辅助区（App 层控制）。 */
   onCollapse?: () => void;
 };
 
-export function Auxiliary({ view, onCollapse }: AuxiliaryProps) {
+export function Auxiliary({ view, collapsed = false, onCollapse }: AuxiliaryProps) {
   return (
-    <aside className="aux aux-collapsible">
-      {/* v3：辅助区收起按钮（设计稿：收起钮在「今日聚焦」右侧；任何视图右上角） */}
-      {onCollapse && (
-        <button
-          className="aux-collapse-btn"
-          aria-label="收起辅助区"
-          title="收起辅助区"
-          onClick={onCollapse}
-          style={{ position: 'absolute', top: 10, right: 10, zIndex: 5 }}
-        >
-          <AuxCollapseIcon />
-        </button>
-      )}
-      {view === 'todo' ? <TodoAux /> : <TodayFocus />}
-    </aside>
+    <div className={`aux-rail${collapsed ? ' is-collapsed' : ''}`} aria-hidden={collapsed}>
+      <aside className="aux">
+        {/* v3：辅助区收起按钮（设计稿：收起钮在「今日聚焦」右侧；任何视图右上角） */}
+        {onCollapse && (
+          <button
+            className="aux-collapse-btn"
+            aria-label="收起辅助区"
+            title="收起辅助区"
+            onClick={onCollapse}
+            style={{ position: 'absolute', top: 10, right: 10, zIndex: 5 }}
+          >
+            <AuxCollapseIcon />
+          </button>
+        )}
+        {view === 'todo' ? <TodoAux /> : <TodayFocus />}
+      </aside>
+    </div>
   );
 }
 

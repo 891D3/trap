@@ -2360,8 +2360,27 @@ input {
 }
 
 /* 辅助区收起钮（任意视图右上角） */
-.aux-collapsible {
+/* 辅助区包裹层：与 .side-rail 同套宽度过渡（收起 0 / 展开 256） */
+.aux-rail {
   position: relative;
+  flex: none;
+  width: var(--aux-w);
+  transition: width var(--dur-slow) var(--ease);
+  overflow: hidden;
+}
+
+.aux-rail.is-collapsed {
+  width: 0;
+}
+
+/* 内容淡出/淡入：文字延迟 80ms（与侧栏 label 同节拍） */
+.aux-rail .aux {
+  transition: opacity var(--dur-fast) var(--ease) var(--label-delay);
+}
+
+.aux-rail.is-collapsed .aux {
+  opacity: 0;
+  transition: none;
 }
 
 .aux-collapse-btn {
