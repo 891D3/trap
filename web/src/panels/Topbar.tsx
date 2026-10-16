@@ -37,7 +37,13 @@ type TopbarProps = {
 
 export function Topbar({ view, auxExpand }: TopbarProps) {
   const meta = VIEW_TITLE[view] ?? VIEW_TITLE.todo;
-  const { theme, setTheme } = useStore();
+  const { theme, setTheme, projects, projectTabs, projectFilter, openProject, closeProjectTab } = useStore();
+
+  /** 已登记的标签页（按登记顺序；项目可能被删——渲染前过滤）。 */
+  const tabProjects = projectTabs
+    .map((id) => projects.find((p) => p.id === id))
+    .filter((p): p is NonNullable<typeof p> => p != null);
+  const isTodoView = view === 'todo';
 
   const nextTheme = (): void => {
     const index = THEME_ORDER.indexOf(theme);
@@ -47,6 +53,35 @@ export function Topbar({ view, auxExpand }: TopbarProps) {
 
   return (
     <header className="topbar">
+      {/* 项目标签页：点开的项目在这里登记（便签页式多开切换） */}
+      {isTodoView && tabProjects.length > 0 && (
+        <div className="topbar-tabs" role="tablist" aria-label="项目标签页">
+          {tabProjects.map((p) => (
+            <button
+              key={p.id}
+              className={`topbar-tab${projectFilter === p.id ? ' is-active' : ''}`}
+              role="tab"
+              aria-selected={projectFilter === p.id}
+              onClick={() => openProject(p.id)}
+              title={p.name}
+            >
+              <span className={`side-dot proj-${p.color}`} />
+              <span className="topbar-tab-name">{p.name}</span>
+              <span
+                className="topbar-tab-close"
+                role="button"
+                aria-label={`关闭标签 ${p.name}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  closeProjectTab(p.id);
+                }}
+              >
+                ×
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="topbar-title-group">
         <h1 className="main-title">{meta.title}</h1>
         <span className="topbar-crumb">{meta.crumb}</span>

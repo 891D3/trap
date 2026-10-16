@@ -2398,3 +2398,61 @@ input {
 .aux-collapse-btn:hover {
   color: var(--text);
 }
+
+/* ---- 目检新需求：顶部项目标签页（便签页式多开切换） ---- */
+.topbar-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow-x: auto;
+  flex: none;
+  max-width: 40%;
+}
+
+.topbar-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-item);
+  background: var(--border-soft);
+  color: var(--text-2);
+  font-size: 12px;
+  flex: none;
+}
+
+.topbar-tab:hover {
+  color: var(--text);
+}
+
+.topbar-tab.is-active {
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.topbar-tab-name {
+  max-width: 120px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.topbar-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  color: var(--text-3);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.topbar-tab-close:hover {
+  color: var(--text);
+  background: var(--border);
+}

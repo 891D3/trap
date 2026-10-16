@@ -22,7 +22,7 @@ function dayKey(d: Date): string {
 }
 
 export function TodoAux(): React.JSX.Element {
-  const { todos, projects, auxDateFilter, setAuxDateFilter, auxCategoryFilter, setAuxCategoryFilter, projectFilter, setView } = useStore();
+  const { todos, projects, auxDateFilter, setAuxDateFilter, auxCategoryFilter, setAuxCategoryFilter, projectFilter, openProject } = useStore();
 
   const undone = useMemo(() => todos.filter((t) => !t.done), [todos]);
 
@@ -133,8 +133,8 @@ export function TodoAux(): React.JSX.Element {
             <button
               key={p.id}
               className={`aux-filter-row${projectFilter === p.id ? ' is-active' : ''}`}
-              onClick={() => setView('todo')}
-              // 项目过滤态由侧栏 openProject 写入 store，此处点击跳视图并沿用现有关联。
+              onClick={() => openProject(p.id)}
+              // 与侧栏一致：openProject 会登记顶部标签页并进入过滤视图。
               data-project={p.id}
             >
               <span className={`side-dot proj-${p.color}`} />

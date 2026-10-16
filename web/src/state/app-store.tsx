@@ -138,7 +138,10 @@ type AppStore = {
   deleteProject: (id: number) => Promise<void>;
   /** 按项目过滤（点击侧栏项目进入待办过滤态；null = 不过滤）。 */
   projectFilter: number | null;
+  /** 顶部项目标签页（点开项目即登记，可多开/切换/关闭；会话内状态）。 */
+  projectTabs: number[];
   openProject: (id: number) => void;
+  closeProjectTab: (id: number) => void;
   clearProjectFilter: () => void;
 };
 
@@ -326,6 +329,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [projectsError, setProjectsError] = useState<string | null>(null);
   const [projectFilter, setProjectFilter] = useState<number | null>(null);
+  const [projectTabs, setProjectTabs] = useState<number[]>([]);
 
   const loadProjects = useCallback(async (showLoading: boolean): Promise<void> => {
     if (showLoading) setProjectsLoading(true);
@@ -375,6 +379,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const deleteProjectAction = useCallback(async (id: number): Promise<void> => {
     try {
       await removeProject(id);
+      // 项目删除联动顶部标签页清理 + 过滤态复位。
+      setProjectTabs((current) => current.filter((t) => t !== id));
+      setProjectFilter((filter) => (filter === id ? null : filter));
       setProjects((current) => current.filter((p) => p.id !== id));
     } catch (error: unknown) {
       const message = toChineseError(error, '项目删除失败，请稍后重试');
@@ -419,6 +426,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       void loadStats();
       if (payload.action === 'deleted') {
         void listTodos().then(setTodos).catch(() => undefined);
+        setProjectTabs((current) => current.filter((t) => t !== payload.projectId));
         setProjectFilter((current) => (current === payload.projectId ? null : current));
       }
     });
@@ -638,7 +646,16 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     editProject: editProjectAction,
     deleteProject: deleteProjectAction,
     projectFilter,
-    openProject: (id: number) => setProjectFilter(id),
+    projectTabs,
+    openProject: (id: number) => {
+      setProjectTabs((current) => (current.includes(id) ? current : [...current, id]));
+      setProjectFilter(id);
+      setView('todo');
+    },
+    closeProjectTab: (id: number) => {
+      setProjectTabs((current) => current.filter((t) => t !== id));
+      setProjectFilter((filter) => (filter === id ? null : filter));
+    },
     clearProjectFilter: () => setProjectFilter(null),
     links,
     linksLoading,
