@@ -179,6 +179,15 @@ func (s *NoteService) RestoreSpark(ctx context.Context, id int64) (store.NoteV2,
 	return n, nil
 }
 
+// GetNoteV2 按 id 读取 v2 实体（笔记/灵感编辑态共用）。
+func (s *NoteService) GetNoteV2(ctx context.Context, id int64) (store.NoteV2, error) {
+	db, err := s.ready()
+	if err != nil {
+		return store.NoteV2{}, err
+	}
+	return db.GetNoteV2(ctx, id)
+}
+
 // SaveNoteV2 保存标题/正文并更新项目关联（编辑态保存；无关联传 nil 以清空）。
 func (s *NoteService) SaveNoteV2(ctx context.Context, id int64, title, content string, projectID *int64) (store.NoteV2, error) {
 	db, err := s.ready()
@@ -191,6 +200,75 @@ func (s *NoteService) SaveNoteV2(ctx context.Context, id int64, title, content s
 	}
 	s.broadcast(NoteChangedPayload{Action: NoteSaved, Note: toNote(n), NoteID: n.ID})
 	return n, nil
+}
+
+// TagCount 是常用标签统计项。
+type TagCount struct {
+	Tag   string `json:"tag"`
+	Count int    `json:"count"`
+}
+
+// TagStats 统计笔记正文中的 `#标签` token Top N（辅助区常用标签卡数据源）。
+// 标签不落库（PRD §3.5.1 决策；正文实时解析）。
+func (s *NoteService) TagStats(ctx context.Context, limit int) ([]TagCount, error) {
+	db, err := s.ready()
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 20 {
+		limit = 5
+	}
+	notes, err := db.ListNotesV2(ctx, store.NoteFilterV2{Kind: store.NoteKindNote})
+	if err != nil {
+		return nil, err
+	}
+	counts := map[string]int{}
+	for _, summary := range notes {
+		full, err := db.GetNoteV2(ctx, summary.ID)
+		if err != nil {
+			continue
+		}
+		for _, tag := range extractTags(full.Title + "\n" + full.Content) {
+			counts[tag]++
+		}
+	}
+	out := make([]TagCount, 0, len(counts))
+	for tag, count := range counts {
+		out = append(out, TagCount{Tag: tag, Count: count})
+	}
+	// 按次数降序，次数相同按标签字典序稳定排序。
+	for i := 1; i < len(out); i++ {
+		for j := i; j > 0; j-- {
+			if out[j].Count > out[j-1].Count ||
+				(out[j].Count == out[j-1].Count && out[j].Tag < out[j-1].Tag) {
+				out[j], out[j-1] = out[j-1], out[j]
+				continue
+			}
+			break
+		}
+	}
+	if len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+// extractTags 提取文本中的 `#xx` token 序列（# 后接非空白字符）。
+func extractTags(text string) []string {
+	var tags []string
+	for _, line := range strings.Split(text, "\n") {
+		for _, raw := range strings.Fields(line) {
+			if strings.HasPrefix(raw, "#") && len([]rune(raw)) > 1 {
+				trimmed := strings.TrimLeft(raw, "#")
+				// 去掉尾随标点（`#标签。`/`#标签，`）。
+				trimmed = strings.TrimRight(trimmed, "。，、;；.,")
+				if trimmed != "" {
+					tags = append(tags, trimmed)
+				}
+			}
+		}
+	}
+	return tags
 }
 
 // LinkProject 更新笔记/灵感的项目关联（chip 选择浮层保存时调用）。

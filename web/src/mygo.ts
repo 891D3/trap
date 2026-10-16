@@ -183,6 +183,12 @@ export interface SweepResult {
   purged: number;
 }
 
+/** TagCount 是常用标签统计项。 */
+export interface TagCount {
+  tag: string;
+  count: number;
+}
+
 /** Todo 是一条待办的领域模型。时间是 UTC RFC3339 文本（AGENTS.md §4.1）。 */
 export interface Todo {
   id: number;
@@ -355,6 +361,10 @@ export const NoteService = {
   get(id: number): Promise<Note> {
     return call("NoteService.Get", id);
   },
+  /** GetNoteV2 按 id 读取 v2 实体（笔记/灵感编辑态共用）。 */
+  getNoteV2(id: number): Promise<NoteV2> {
+    return call("NoteService.GetNoteV2", id);
+  },
   /** LinkProject 更新笔记/灵感的项目关联（chip 选择浮层保存时调用）。 */
   linkProject(id: number, projectID: number | null): Promise<NoteV2> {
     return call("NoteService.LinkProject", id, projectID);
@@ -398,6 +408,13 @@ export const NoteService = {
   /** SweepSparks 执行自动归档清扫（main 启动时点 + 前端进入灵感 Tab 触发）。 */
   sweepSparks(): Promise<SweepResult> {
     return call("NoteService.SweepSparks");
+  },
+  /**
+   * TagStats 统计笔记正文中的 `#标签` token Top N（辅助区常用标签卡数据源）。
+   * 标签不落库（PRD §3.5.1 决策；正文实时解析）。
+   */
+  tagStats(limit: number): Promise<TagCount[]> {
+    return call("NoteService.TagStats", limit);
   },
 } as const;
 

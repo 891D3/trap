@@ -36,15 +36,29 @@ import {
   type Project,
 } from '../api/projects';
 import {
+  type SparkPromoteResult,
+  archiveSpark as archiveSparkAPI,
+  copyNoteRichText as copyRichTextAPI,
   createNote,
+  createSpark as createSparkAPI,
   deleteNote as deleteNoteAPI,
   exportNotes,
   getNote,
-  listNotes,
-  saveNote as saveNoteAPI,
   setNoteArchived,
+  getNoteV2 as getNoteV2API,
+  linkNoteProject,
+  listNotes,
+  listNotesV2 as listNotesV2API,
+  listSparks as listSparksAPI,
+  promoteSpark as promoteSparkAPI,
+  restoreSpark as restoreSparkAPI,
+  saveNote as saveNoteAPI,
+  saveNoteV2 as saveNoteV2API,
+  sweepSparks as sweepAPI,
   type Note,
   type NoteSummary,
+  type NoteSummaryV2,
+  type NoteV2,
 } from '../api/notes';
 import { subscribeSettingsChanged } from '../realtime/settings-events';
 import { subscribeTodoChanged } from '../realtime/todo-events';
@@ -54,6 +68,7 @@ import { subscribeQuickLinkChanged } from '../realtime/quicklink-events';
 
 export type { ThemeSetting } from '../api/app-settings';
 export type { Todo } from '../api/todos';
+export type { NoteV2, NoteSummaryV2, SparkPromoteResult } from '../api/notes';
 export type { Note, NoteSummary } from '../api/notes';
 export type { Project } from '../api/projects';
 
@@ -74,6 +89,25 @@ export const avatarColorFor = (name: string): string => {
 
 /* ---------- 主题 ---------- */
 
+
+/** upsertSummary 按 id 替换/插入 v2 摘要（NoteV2 携带同结构字段）。 */
+function upsertSummary(
+  list: NoteSummaryV2[],
+  entity: NoteV2 | NoteSummaryV2,
+): NoteSummaryV2[] {
+  const summary: NoteSummaryV2 = {
+    ...entity,
+    archivedAt: entity.archivedAt ?? null,
+    createdAt: entity.createdAt,
+    updatedAt: entity.updatedAt,
+    projectId: entity.projectId ?? null,
+  };
+  const idx = list.findIndex((n) => n.id === summary.id);
+  if (idx === -1) return [summary, ...list];
+  const next = [...list];
+  next[idx] = summary;
+  return next;
+}
 function resolveTheme(setting: ThemeSetting): 'light' | 'dark' {
   if (setting !== 'system') return setting;
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -120,6 +154,28 @@ type AppStore = {
   setNoteArchived: (id: number, archived: boolean) => Promise<void>;
   deleteNote: (id: number) => Promise<void>;
   exportNote: (id: number) => Promise<string>;
+  /* ---------- 信息记录 v2（M0.5：灵感速记 × 笔记文档） ---------- */
+  /** 未处理灵感流（ListSparks includeArchived=false，创建时间倒序）。 */
+  /* 零值兼容：archivedAt null = 未归档 */
+  sparks: NoteSummaryV2[];
+  /** 归档灵感（浮层用，全量）。 */
+  sparksArchived: NoteSummaryV2[];
+  sparksLoading: boolean;
+  sparksError: string | null;
+  addSpark: (content: string, projectId?: number | null) => Promise<NoteV2>;
+  promoteSpark: (sparkID: number, as: 'note' | 'todo') => Promise<SparkPromoteResult>;
+  deleteSpark: (id: number) => Promise<void>;
+  archiveSpark: (id: number) => Promise<NoteV2>;
+  restoreSpark: (id: number) => Promise<NoteV2>;
+  /** 笔记列表 v2（kind=note；标签过滤由视图层调 ListNotesV2 直取）。 */
+  notesV2: NoteSummaryV2[];
+  notesV2Loading: boolean;
+  getNoteV2: (id: number) => Promise<NoteV2>;
+  saveNoteV2: (id: number, title: string, content: string, projectId: number | null) => Promise<NoteV2>;
+  linkNoteProject: (id: number, projectId: number | null) => Promise<NoteV2>;
+  copyRichText: (id: number) => Promise<void>;
+  runSweep: () => Promise<void>;
+
   /** v2.0 R6：快捷入口真实服务（CRUD/分组/打开）。 */
   links: QuickLink[];
   linksLoading: boolean;
@@ -343,6 +399,134 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+
+  /* ---------- 信息记录 v2（M0.5）状态 ---------- */
+  const [sparks, setSparks] = useState<NoteSummaryV2[]>([]);
+  const [sparksArchived, setSparksArchived] = useState<NoteSummaryV2[]>([]);
+  const [sparksLoading, setSparksLoading] = useState(true);
+  const [sparksError, setSparksError] = useState<string | null>(null);
+  const [notesV2, setNotesV2] = useState<NoteSummaryV2[]>([]);
+  const [notesV2Loading, setNotesV2Loading] = useState(true);
+
+  const loadSparks = useCallback(async (): Promise<void> => {
+    setSparksLoading(true);
+    try {
+      const [open, archived] = await Promise.all([listSparksAPI(false), listSparksAPI(true)]);
+      setSparks(open);
+      setSparksArchived(archived);
+      setSparksError(null);
+    } catch (error: unknown) {
+      setSparksError(toChineseError(error, '灵感加载失败，请稍后重试'));
+    } finally {
+      setSparksLoading(false);
+    }
+  }, []);
+
+  const loadNotesV2 = useCallback(async (): Promise<void> => {
+    setNotesV2Loading(true);
+    try {
+      setNotesV2(await listNotesV2API(null, ''));
+    } catch (error: unknown) {
+      console.error(toChineseError(error, '信息记录加载失败，请稍后重试'));
+    } finally {
+      setNotesV2Loading(false);
+    }
+  }, []);
+
+  const addSparkAction = useCallback(
+    async (content: string, projectID?: number | null): Promise<NoteV2> => {
+      const created = await createSparkAPI(content, projectID ?? null);
+      setSparks((current) => [created, ...current]);
+      return created;
+    },
+    [],
+  );
+
+  const promoteSparkAction = useCallback(
+    async (sparkID: number, as: 'note' | 'todo'): Promise<SparkPromoteResult> => {
+      const raw = await promoteSparkAPI(sparkID, as);
+      const result: SparkPromoteResult = {
+        note: raw.note ? { ...raw.note, archivedAt: raw.note.archivedAt ?? null, projectId: raw.note.projectId ?? null } : null,
+        todo: raw.todo ? { id: raw.todo.id, title: raw.todo.title } : null,
+      };
+      // 触发 v2 相关联的列表刷新（note.changed / todo.changed 事件也会驱动）。
+      void loadSparks();
+      return result;
+    },
+    [],
+  );
+
+  const deleteSparkAction = useCallback(async (id: number): Promise<void> => {
+    await deleteNoteAPI(id);
+    setSparks((current) => current.filter((n) => n.id !== id));
+    setSparksArchived((current) => current.filter((n) => n.id !== id));
+  }, []);
+
+  const archiveSparkAction = useCallback(
+    async (id: number): Promise<NoteV2> => {
+      const updated = await archiveSparkAPI(id);
+      setSparks((current) => current.filter((n) => n.id !== id));
+      setSparksArchived((current) => upsertSummary(current, updated));
+      return updated;
+    },
+    [],
+  );
+
+  const restoreSparkAction = useCallback(
+    async (id: number): Promise<NoteV2> => {
+      const updated = await restoreSparkAPI(id);
+      setSparksArchived((current) => current.filter((n) => n.id !== id));
+      setSparks((current) => upsertSummary(current, updated));
+      return updated;
+    },
+    [],
+  );
+
+  const getNoteV2Action = useCallback(async (id: number): Promise<NoteV2> => {
+    return await getNoteV2API(id);
+  }, []);
+
+  const saveNoteV2Action = useCallback(
+    async (id: number, title: string, content: string, projectId: number | null): Promise<NoteV2> => {
+      const updated = await saveNoteV2API(id, title, content, projectId);
+      setNotesV2((current) => upsertSummary(current, updated));
+      return updated;
+    },
+    [],
+  );
+
+  const linkNoteProjectAction = useCallback(
+    async (id: number, projectId: number | null): Promise<NoteV2> => {
+      const updated = await linkNoteProject(id, projectId);
+      setNotesV2((current) => upsertSummary(current, updated));
+      return updated;
+    },
+    [],
+  );
+
+  const copyRichTextAction = useCallback(async (id: number): Promise<void> => {
+    await copyRichTextAPI(id);
+  }, []);
+
+  const runSweepAction = useCallback(async (): Promise<void> => {
+    await sweepAPI();
+    void loadSparks();
+  }, [loadSparks]);
+
+  // note.changed 刷新灵感流/笔记列表；todo.changed 已有（算 board）。
+  const v2HandlingRef = useRef(false);
+  useEffect(() => {
+    const unsubscribeSubscribeNote = subscribeNoteChanged(() => {
+      void loadSparks();
+      void loadNotesV2();
+    });
+    void loadSparks();
+    void loadNotesV2();
+    return unsubscribeSubscribeNote;
+  }, [loadSparks, loadNotesV2]);
+  void v2HandlingRef;
+
+    /* ---------- 信息记录 v2 状态结束 ---------- */
 
   const addProjectAction = useCallback(
     async (name: string, color = ''): Promise<void> => {
@@ -657,6 +841,22 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       setProjectFilter((filter) => (filter === id ? null : filter));
     },
     clearProjectFilter: () => setProjectFilter(null),
+    sparks,
+    sparksArchived,
+    sparksLoading,
+    sparksError,
+    addSpark: addSparkAction,
+    promoteSpark: promoteSparkAction,
+    deleteSpark: deleteSparkAction,
+    archiveSpark: archiveSparkAction,
+    restoreSpark: restoreSparkAction,
+    notesV2,
+    notesV2Loading,
+    getNoteV2: getNoteV2Action,
+    saveNoteV2: saveNoteV2Action,
+    linkNoteProject: linkNoteProjectAction,
+    copyRichText: copyRichTextAction,
+    runSweep: runSweepAction,
     links,
     linksLoading,
     linksError: linksError,
