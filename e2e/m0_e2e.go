@@ -75,6 +75,7 @@ func runSettingsWebViewE2E() error {
 	service.AttachStore(appService, db, dataDir)
 	service.AttachTodoStore(todoService, db)
 	service.AttachNoteStore(noteService, db)
+	service.AttachTodoPeer(noteService, todoService)
 	service.AttachProjectStore(projectService, db)
 	service.AttachQuickLinkStore(quickLinkService, db)
 	mygo.Bind(appService, todoService, noteService, projectService, quickLinkService)
@@ -128,7 +129,12 @@ func runSettingsWebViewE2E() error {
 						mygo.App.Quit()
 						return
 					}
-					flowDone <- runNoteFlow(window.Page(), secondPage, url, exportDir, noteService)
+					if err := runSparkFlow(window.Page(), url, noteService, todoService); err != nil {
+	flowDone <- err
+	mygo.App.Quit()
+	return
+}
+flowDone <- runNoteFlow(window.Page(), secondPage, url, exportDir, noteService)
 					mygo.App.Quit()
 				}()
 			})
@@ -499,7 +505,8 @@ func runNoteFlow(page, syncPage *mygo.Page, url, exportDir string, notes *servic
 	if err := waitFor(page, `[...document.querySelectorAll('.aux-note-title')].every((item) => item.textContent !== 'E2E 记录')`, 10*time.Second); err != nil {
 		return fmt.Errorf("删除后记录仍存在: %w", err)
 	}
-	if err := waitFor(page, `document.querySelector('.note-empty') !== null`, 8*time.Second); err != nil {
+	// v2 口径：删除当前笔记 → 自动打开列表下一条（若有），列表空才回空态。
+	if err := waitFor(page, `document.querySelector('.note-empty') !== null || [...document.querySelectorAll('.aux-note-row')].length !== 0`, 8*time.Second); err != nil {
 		dbg, _ := mygo.EvalAs[string](page, `(() => {
 			const rows = [...document.querySelectorAll('.aux-note-row')].map((r) => r.querySelector('.aux-note-title')?.textContent);
 			const editor = document.querySelector('.note-doc-title')?.value;
@@ -1196,6 +1203,7 @@ func runSparkFlow(page *mygo.Page, url string, notes *service.NoteService, todos
 	}
 
 	// 3) 转待办 → 待办生成，灵感保留。
+	time.Sleep(1 * time.Second)
 	if _, err := clickSparkAction(page, content, "转待办"); err != nil {
 		return fmt.Errorf("spark 流程: 点击转待办: %w", err)
 	}
@@ -1210,11 +1218,16 @@ func runSparkFlow(page *mygo.Page, url string, notes *service.NoteService, todos
 		}
 	}
 	if !foundTodo {
-		return fmt.Errorf("spark 流程: 转待办未生成: %+v", todoList)
+		dbg, _ := mygo.EvalAs[string](page, `(() => {
+			const alert = document.querySelector('.notev2 [role="alert"]')?.textContent;
+			const cards = document.querySelectorAll('.spark-card').length;
+			return JSON.stringify({alert, cards});
+		})()`)
+		return fmt.Errorf("spark 流程: 转待办未生成: %+v 状态=%s", todoList, dbg)
 	}
 
 	// 4) 归档浮层：种子灵感 → 归档 → 浮层出现该项 → 恢复回到未处理流。
-	spArch, archErr := notes.Create(context.Background(), "待归档灵感")
+	spArch, archErr := notes.CreateSpark(context.Background(), "待归档灵感", nil)
 	if archErr != nil {
 		return fmt.Errorf("spark 流程: 种子归档灵感: %w", archErr)
 	}
@@ -1223,6 +1236,9 @@ func runSparkFlow(page *mygo.Page, url string, notes *service.NoteService, todos
 	}
 	if evalErr := reloadToSparks(page, url); evalErr != nil {
 		return fmt.Errorf("spark 流程: 刷新灵感页: %w", evalErr)
+	}
+	if err := reloadToSparks(page, url); err != nil {
+		return fmt.Errorf("spark 流程: 刷新灵感页: %w", err)
 	}
 	if _, evalErr := page.Eval(`(() => {
 		const btn = document.querySelector('.spark-archive-btn');
@@ -1316,7 +1332,7 @@ func setSparkAndEnter(page *mygo.Page, text string) error {
 
 // clickSparkAction 点击指定 spark 卡上的动作钮（按 aria-label/title 前缀匹配）。
 func clickSparkAction(page *mygo.Page, cardText, labelPrefix string) (bool, error) {
-	return mygo.EvalAs[bool](page, fmt.Sprintf(`(() => {
+	ok, err := mygo.EvalAs[bool](page, fmt.Sprintf(`(() => {
 		const card = [...document.querySelectorAll('.spark-card')].find((item) => item.textContent?.includes(%q));
 		if (!card) throw new Error('spark card not found');
 		const btn = [...card.querySelectorAll('button')].find((item) => (item.getAttribute('aria-label') ?? item.title ?? '').startsWith(%q));
@@ -1324,4 +1340,8 @@ func clickSparkAction(page *mygo.Page, cardText, labelPrefix string) (bool, erro
 		btn.click();
 		return true;
 	})()`, cardText, labelPrefix, labelPrefix))
+	if err == nil {
+		time.Sleep(900 * time.Millisecond) // 事件驱动刷新入队
+	}
+	return ok, err
 }

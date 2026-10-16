@@ -53,7 +53,7 @@ export function NoteAux({
     const next = tagFilter === tag ? '' : tag;
     setTagFilter(next);
     try {
-      const rows = await listNotesV2(null, next);
+      const rows = (await listNotesV2(null, next)).filter((n) => n.kind !== 'spark');
       setRecentFiltered(rows.map((n) => ({ id: n.id, title: n.title, kind: n.kind })));
     } catch (error: unknown) {
       console.error(toChineseError(error, '标签过滤失败'));

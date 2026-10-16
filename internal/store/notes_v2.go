@@ -121,7 +121,8 @@ func (db *DB) ListNotesV2(ctx context.Context, f NoteFilterV2) ([]NoteSummaryV2,
 	}
 	if !f.IncludeArchived {
 		// 笔记沿用 archived 布尔；灵感看 archived_at 是否为空。
-		conds = append(conds, "(archived = 0 AND kind = 'note') OR (kind = 'spark' AND archived_at IS NULL)")
+		// 注意：必须整组加括号，否则 OR 会越过其他 AND 条件把未归档灵感漏进来。
+		conds = append(conds, "((archived = 0 AND kind = 'note') OR (kind = 'spark' AND archived_at IS NULL))")
 	}
 	sql := "SELECT id, title, content, kind, archived, archived_at, created_at, updated_at, project_id FROM notes WHERE " +
 		whereJoin(conds)

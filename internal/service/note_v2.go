@@ -77,7 +77,9 @@ func (s *NoteService) ListNotesV2(ctx context.Context, projectID *int64, tag str
 	if err != nil {
 		return nil, err
 	}
-	f := store.NoteFilterV2{}
+	f := store.NoteFilterV2{Kind: store.NoteKindNote} // 最近笔记仅笔记文档（区别于灵感流）
+	v2act := 0
+	_ = v2act
 	if projectID != nil {
 		f.HasProject = true
 		f.ProjectID = projectID
