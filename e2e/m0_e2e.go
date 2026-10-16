@@ -199,26 +199,13 @@ func runSettingsFlow(page, syncPage *mygo.Page, url, exportDir string) error {
 		return fmt.Errorf("settings.changed 未同步第二个窗口姓名: %w", err)
 	}
 
+	// 暗色主题测试动作已按用户要求移除（2026-10-16）：不切换主题，避免测试过程
+	// 中界面变暗影响目检；主题持久化能力由设置页手测覆盖。
 	if err := waitFor(page, `(() => {
 		const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === '深色');
 		return button !== undefined && !(button instanceof HTMLButtonElement && button.disabled);
 	})()`, 10*time.Second); err != nil {
 		return fmt.Errorf("等待姓名保存完成: %w", err)
-	}
-	if ok, err := mygo.EvalAs[bool](page, `(() => {
-		const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === '深色');
-		if (!button) return false;
-		button.click();
-		return true;
-	})()`); err != nil || !ok {
-		return fmt.Errorf("点击深色主题失败: %v", err)
-	}
-	if err := waitFor(page, `document.documentElement.dataset.theme === 'dark'`, 10*time.Second); err != nil {
-		current, _ := mygo.EvalAs[string](page, `JSON.stringify({theme: document.documentElement.dataset.theme ?? '', buttons: [...document.querySelectorAll('button')].filter((item) => item.textContent?.trim() === '深色').map((item) => item.className), alert: document.querySelector('[role="alert"]')?.textContent ?? ''})`)
-		return fmt.Errorf("深色主题未生效: %w；当前状态=%s", err, current)
-	}
-	if err := waitFor(syncPage, `document.documentElement.dataset.theme === 'dark'`, 10*time.Second); err != nil {
-		return fmt.Errorf("settings.changed 未同步第二个窗口主题: %w", err)
 	}
 
 	if err := setInputAndBlur(page, `input[aria-label="导出目录"]`, exportDir); err != nil {
@@ -233,10 +220,6 @@ func runSettingsFlow(page, syncPage *mygo.Page, url, exportDir string) error {
 	if err := waitFor(page, `document.querySelector('.side-user-name')?.textContent === 'E2E 用户'`, 10*time.Second); err != nil {
 		return fmt.Errorf("姓名重载后未持久化: %w", err)
 	}
-	if err := waitFor(page, `document.documentElement.dataset.theme === 'dark'`, 10*time.Second); err != nil {
-		return fmt.Errorf("主题重载后未持久化: %w", err)
-	}
-
 	if err := setInputAndBlur(page, `input[aria-label="姓名"]`, ""); err != nil {
 		return fmt.Errorf("填写空姓名: %w", err)
 	}
