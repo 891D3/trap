@@ -1,6 +1,9 @@
 /* 信息记录 v2：编辑器铺满文档卡（去除 Crepe frame 内框，PRD §3.5.3 验收 4） */
 .markdown-editor {
+  height: 100%;
   min-height: 100%;
+  display: flex;
+  flex-direction: column;
   border: none;
   border-radius: 0;
   background: transparent;
@@ -8,10 +11,14 @@
 }
 
 .markdown-editor [data-milkdown-root] {
+  flex: 1;
   min-height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .markdown-editor .ProseMirror {
+  flex: 1;
   min-height: 100%;
   padding: 0;
   outline: none;
