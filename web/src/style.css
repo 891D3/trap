@@ -2682,12 +2682,26 @@ input {
   word-break: break-word;
 }
 
-.spark-meta { display: flex; align-items: center; gap: 6px; }
-.spark-proj { font-size: 11px; color: var(--text-2); }
-.spark-time { font-size: 11px; color: var(--text-3); }
+.spark-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
 
-.spark-actions { display: flex; gap: 6px; }
+.spark-meta { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.spark-proj { font-size: 11px; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spark-time { font-size: 11px; color: var(--text-3); flex: none; }
 
+.spark-countdown {
+  font-size: 11px;
+  color: var(--warn);
+  flex: none;
+}
+
+.spark-actions { display: flex; gap: 4px; flex: none; }
+
+/* v3 修正：纯图标钮（设计稿为无底色线性图标，hover 才显浅底） */
 .spark-action {
   display: inline-flex;
   align-items: center;
@@ -2695,11 +2709,13 @@ input {
   height: 26px;
   width: 26px;
   border-radius: 6px;
-  background: var(--primary-soft);
-  color: var(--primary);
+  color: var(--text-2);
 }
 
-.spark-action:hover { background: var(--slate-200); }
+.spark-action:hover {
+  background: var(--border-soft);
+  color: var(--text);
+}
 
 /* 笔记文档态 */
 .view-tab-action { height: 32px; padding: 0 14px; font-size: 13px; }
@@ -2832,9 +2848,8 @@ input {
 /* ---- 辅助区（最近笔记/常用标签/导出） ---- */
 .aux-note-recent {
   padding: 14px 14px 12px;
-  background: var(--surface);
+  background: var(--surface-glass);
   border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
 }
 
 .aux-recent-head {

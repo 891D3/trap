@@ -27,6 +27,17 @@ function shortTime(iso: string | null): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+/** 归档倒计时：30 天口径，剩余天数 1–30 显示（设计稿「N天后归档」）。 */
+function archiveCountdown(iso: string | null): number | null {
+  if (!iso) return null;
+  const created = new Date(iso);
+  if (Number.isNaN(created.getTime())) return null;
+  const days = 30 - Math.floor((Date.now() - created.getTime()) / 86400000);
+  if (days < 1) return null; // sweep 将自动归档
+  if (days > 30) return null;
+  return days;
+}
+
 /** 归档日期 MM-DD。 */
 function shortDate(iso: string | null): string {
   if (!iso) return '';
@@ -290,39 +301,45 @@ export function NoteView() {
               return (
                 <div key={spark.id} className="spark-card">
                   <div className="spark-content">{spark.content}</div>
-                  <div className="spark-meta">
-                    {meta && <span className={`side-dot proj-${meta.color}`} />}
-                    {meta && <span className="spark-proj">#{meta.name}</span>}
-                    <span className="spark-time">{shortTime(spark.updatedAt)}</span>
-                  </div>
-                  <div className="spark-actions">
-                    <button
-                      className="spark-action"
-                      title="转笔记"
-                      aria-label={`转笔记 ${spark.title.slice(0, 8)}`}
-                      disabled={sparkBusy !== null}
-                      onClick={() => void promote(spark.id, 'note')}
-                    >
-                      <IconNote size={14} />
-                    </button>
-                    <button
-                      className="spark-action"
-                      title="转待办"
-                      aria-label={`转待办 ${spark.title.slice(0, 8)}`}
-                      disabled={sparkBusy !== null}
-                      onClick={() => void promote(spark.id, 'todo')}
-                    >
-                      <IconCalendar size={14} />
-                    </button>
-                    <button
-                      className="spark-action"
-                      title="删除"
-                      aria-label={`删除 ${spark.title.slice(0, 8)}`}
-                      disabled={sparkBusy !== null}
-                      onClick={() => setPendingSparkDelete(spark)}
-                    >
-                      <IconTrash size={14} />
-                    </button>
+                  {/* foot：meta 左 + 动作钮右（设计稿 39:268/39:273 同行布局） */}
+                  <div className="spark-foot">
+                    <span className="spark-meta">
+                      {meta && <span className={`side-dot proj-${meta.color}`} />}
+                      {meta && <span className="spark-proj">#{meta.name}</span>}
+                      <span className="spark-time">{shortTime(spark.updatedAt)}</span>
+                      {archiveCountdown(spark.createdAt) !== null && (
+                        <span className="spark-countdown">{archiveCountdown(spark.createdAt)}天后归档</span>
+                      )}
+                    </span>
+                    <span className="spark-actions">
+                      <button
+                        className="spark-action"
+                        title="转笔记"
+                        aria-label={`转笔记 ${spark.title.slice(0, 8)}`}
+                        disabled={sparkBusy !== null}
+                        onClick={() => void promote(spark.id, 'note')}
+                      >
+                        <IconNote size={14} />
+                      </button>
+                      <button
+                        className="spark-action"
+                        title="转待办"
+                        aria-label={`转待办 ${spark.title.slice(0, 8)}`}
+                        disabled={sparkBusy !== null}
+                        onClick={() => void promote(spark.id, 'todo')}
+                      >
+                        <IconCalendar size={14} />
+                      </button>
+                      <button
+                        className="spark-action"
+                        title="删除"
+                        aria-label={`删除 ${spark.title.slice(0, 8)}`}
+                        disabled={sparkBusy !== null}
+                        onClick={() => setPendingSparkDelete(spark)}
+                      >
+                        <IconTrash size={14} />
+                      </button>
+                    </span>
                   </div>
                 </div>
               );
