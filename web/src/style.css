@@ -2896,11 +2896,11 @@ input {
 
 /* ---- 辅助区（最近笔记/常用标签/导出） ---- */
 .aux-note-recent {
-  /* 列表行区域距卡片边框 4px（行内距自行补回文本缩进） */
-  padding: 14px 4px 4px;
-  background: var(--surface);
-  border-radius: var(--radius-card);
-  box-shadow: var(--shadow-card);
+  /* v4 目检：去掉卡片圆弧/阴影（与辅助区同底，避免隐约可见的圆角边界） */
+  padding: 4px 4px 4px;
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .aux-recent-head {
