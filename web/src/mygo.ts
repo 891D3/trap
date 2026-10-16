@@ -66,6 +66,8 @@ export interface NoteSummary {
 export interface NoteSummaryV2 {
   id: number;
   title: string;
+  /** 灵感卡直接展示全文；notes 摘要视图前端忽略 */
+  content: string;
   kind: string;
   archived: boolean;
   archivedAt?: string;

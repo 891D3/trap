@@ -388,35 +388,34 @@ func runNoteFlow(page, syncPage *mygo.Page, url, exportDir string, notes *servic
 		return fmt.Errorf("重载同步窗口到信息记录: %w", err)
 	}
 	time.Sleep(300 * time.Millisecond)
-	if err := clickText(page, "新建记录"); err != nil {
+	if err := clickText(page, "新建笔记"); err != nil {
 		return fmt.Errorf("新建记录: %w", err)
 	}
-	if err := waitFor(page, `document.querySelector('input[aria-label="记录标题"]') !== null && document.querySelector('[contenteditable="true"]') !== null`, 15*time.Second); err != nil {
+	if err := waitFor(page, `document.querySelector('input[aria-label="笔记标题"]') !== null && document.querySelector('[contenteditable="true"]') !== null`, 15*time.Second); err != nil {
 		return fmt.Errorf("等待 Milkdown 编辑器: %w", err)
 	}
-	// 布局约定：记录列表可收起/展开；收起后编辑器仍在、卡片消失。
-	if err := clickText(page, "收起列表"); err != nil {
-		return fmt.Errorf("收起记录列表: %w", err)
+	// v2 布局约定：笔记文档态的代码/预览切换（整编辑器只读渲染）。
+	if err := clickAriaLabel(page, "切换到预览"); err != nil {
+		return fmt.Errorf("切换预览态: %w", err)
 	}
-	if err := waitFor(page, `document.querySelector('.note-card') === null && document.querySelector('.note-editor-panel') !== null`, 5*time.Second); err != nil {
-		return fmt.Errorf("收起列表后编辑器状态异常: %w", err)
+	if err := waitFor(page, `document.querySelector('.note-doc-editor.is-preview') !== null`, 5*time.Second); err != nil {
+		return fmt.Errorf("预览态未生效: %w", err)
 	}
-	if err := clickText(page, "展开列表"); err != nil {
-		return fmt.Errorf("展开记录列表: %w", err)
+	if err := clickAriaLabel(page, "切换到编辑"); err != nil {
+		return fmt.Errorf("切回编辑态: %w", err)
 	}
-	if err := waitFor(page, `document.querySelector('.note-card') !== null`, 5*time.Second); err != nil {
-		return fmt.Errorf("展开列表后卡片未恢复: %w", err)
+	if err := waitFor(page, `document.querySelector('.note-doc-editor.is-preview') === null`, 5*time.Second); err != nil {
+		return fmt.Errorf("编辑态未恢复: %w", err)
 	}
-	if err := setInputAndBlur(page, `input[aria-label="记录标题"]`, "E2E 记录"); err != nil {
+	if err := setInputAndBlur(page, `input[aria-label="笔记标题"]`, "E2E 记录"); err != nil {
 		return fmt.Errorf("填写记录标题: %w", err)
 	}
 	markdown := "# E2E 记录\n\n| A | B |\n|---|---|\n| 1 | 2 |"
 	if err := setMilkdownContent(page, markdown); err != nil {
 		return fmt.Errorf("填写 Markdown 表格: %w", err)
 	}
-	if err := waitFor(page, `document.body.innerText.includes('已保存')`, 10*time.Second); err != nil {
-		return fmt.Errorf("2 秒自动保存未完成: %w", err)
-	}
+	// 自动保存以数据库为断言基准（轮询，吸收防抖窗口与保存耗时）。
+	waitNoteContent(notes, "E2E 记录", "| 1", 10*time.Second)
 	// 以数据库内容为基准：Milkdown 会对粘贴的 Markdown 做规范化，
 	// 导出必须与库内内容完全一致（PRD：无损导出）。
 	saved, err := noteContentByTitle(notes, "E2E 记录")
@@ -429,36 +428,33 @@ func runNoteFlow(page, syncPage *mygo.Page, url, exportDir string, notes *servic
 		!strings.Contains(saved, "# E2E 记录") || !strings.Contains(saved, "| 1") || !strings.Contains(saved, "| 2") {
 		return fmt.Errorf("Markdown 未被解析为 GFM 结构: %q", saved)
 	}
-	if err := waitFor(syncPage, `document.querySelector('.note-card-title')?.textContent === 'E2E 记录'`, 10*time.Second); err != nil {
+	if err := waitFor(syncPage, `[...document.querySelectorAll('.aux-note-title')].some((item) => item.textContent === 'E2E 记录')`, 10*time.Second); err != nil {
 		return fmt.Errorf("note.changed 未同步第二窗口新记录: %w", err)
 	}
 
 	if err := reloadToNotes(page, url); err != nil {
 		return fmt.Errorf("记录保存后重载: %w", err)
 	}
-	if err := clickNoteCard(page, "E2E 记录"); err != nil {
-		return fmt.Errorf("打开保存后的记录: %w", err)
-	}
-	if err := waitFor(page, `document.querySelector('input[aria-label="记录标题"]')?.value === 'E2E 记录'`, 10*time.Second); err != nil {
+	// 辅助区行点击 → 打开保存后的记录（v2 联动通道）。
+	clickAuxRow(page, "E2E 记录")
+	if err := waitFor(page, `document.querySelector('input[aria-label="笔记标题"]')?.value === 'E2E 记录'`, 10*time.Second); err != nil {
 		return fmt.Errorf("记录标题未持久化: %w", err)
 	}
 	if err := waitFor(page, `document.querySelector('[contenteditable="true"]')?.innerText?.includes('1') === true`, 20*time.Second); err != nil {
 		return fmt.Errorf("Markdown 表格正文未持久化: %w", err)
 	}
-	if err := clickAriaLabel(page, "归档"); err != nil {
-		return fmt.Errorf("归档记录: %w", err)
+	// v2：经辅助区导出卡导出当前笔记（Markdown 主链路保真断言沿用）。
+	if err := waitFor(page, `document.querySelector('input[aria-label="笔记标题"]')?.value === 'E2E 记录'`, 6*time.Second); err != nil {
+		return fmt.Errorf("导出前编辑态丢失: %w", err)
 	}
-	if err := waitFor(syncPage, `document.querySelector('.note-card-title') === null`, 10*time.Second); err != nil {
-		return fmt.Errorf("归档事件未同步第二窗口: %w", err)
-	}
-	if err := clickText(page, "已归档"); err != nil {
-		return fmt.Errorf("打开已归档筛选: %w", err)
-	}
-	if err := waitFor(page, `document.querySelector('.note-card-title')?.textContent === 'E2E 记录'`, 10*time.Second); err != nil {
-		return fmt.Errorf("归档记录未出现在已归档列表: %w", err)
-	}
-	if err := clickText(page, "导出 Markdown"); err != nil {
-		return fmt.Errorf("导出 Markdown: %w", err)
+	_, err2 := page.Eval(`(() => {
+		const row = [...document.querySelectorAll('.aux-export-row')].find((item) => item.title?.includes('Markdown'));
+		if (!row) throw new Error('export row not found');
+		row.click();
+		return true;
+	})()`)
+	if err2 != nil {
+		return fmt.Errorf("点击导出 Markdown: %w", err2)
 	}
 	var exported string
 	deadline := time.Now().Add(10 * time.Second)
@@ -500,10 +496,33 @@ func runNoteFlow(page, syncPage *mygo.Page, url, exportDir string, notes *servic
 	if err := clickText(page, "删除"); err != nil {
 		return fmt.Errorf("确认删除记录: %w", err)
 	}
-	if err := waitFor(page, `document.querySelector('.note-card-title') === null`, 10*time.Second); err != nil {
+	if err := waitFor(page, `[...document.querySelectorAll('.aux-note-title')].every((item) => item.textContent !== 'E2E 记录')`, 10*time.Second); err != nil {
 		return fmt.Errorf("删除后记录仍存在: %w", err)
 	}
+	if err := waitFor(page, `document.querySelector('.note-empty') !== null`, 8*time.Second); err != nil {
+		dbg, _ := mygo.EvalAs[string](page, `(() => {
+			const rows = [...document.querySelectorAll('.aux-note-row')].map((r) => r.querySelector('.aux-note-title')?.textContent);
+			const editor = document.querySelector('.note-doc-title')?.value;
+			const errBox = document.querySelector('.notev2 [role="alert"]')?.textContent;
+			return JSON.stringify({rows, editor, errBox, body: document.body.innerText.slice(0, 300)});
+		})()`)
+		return fmt.Errorf("删除后未回到空态: %w；状态=%s", err, dbg)
+	}
 	return nil
+}
+
+// clickAuxRow 点击辅助区最近笔记行（v2 联动通道）。
+func clickAuxRow(page *mygo.Page, title string) {
+	_, err := page.Eval(fmt.Sprintf(`(() => {
+		const row = [...document.querySelectorAll('.aux-note-row')].find((item) => item.querySelector('.aux-note-title')?.textContent === %q);
+		if (!row) throw new Error('aux note row not found: ' + %q);
+		row.click();
+		return true;
+	})()`, title, title))
+	if err != nil {
+		return
+	}
+	time.Sleep(500 * time.Millisecond)
 }
 
 // warmupEditorAndDeps 预热 Vite 依赖图与 Milkdown 编辑器。
@@ -520,7 +539,7 @@ func warmupEditorAndDeps(page *mygo.Page, url string, notes *service.NoteService
 	}
 	var editorWaitErr error
 	for attempt := 0; attempt < 3; attempt++ {
-		if err := clickText(page, "新建记录"); err != nil {
+		if err := clickText(page, "新建笔记"); err != nil {
 			return fmt.Errorf("预热创建记录: %w", err)
 		}
 		if err := waitFor(page, `document.querySelector('[contenteditable="true"]') !== null`, 20*time.Second); err != nil {
@@ -549,10 +568,21 @@ func warmupEditorAndDeps(page *mygo.Page, url string, notes *service.NoteService
 			return fmt.Errorf("预热清理记录 %d: %w", note.ID, err)
 		}
 	}
-	if err := waitFor(page, `document.querySelector('.note-card-title') === null`, 10*time.Second); err != nil {
+	if err := waitFor(page, `[...document.querySelectorAll('.aux-note-title')].length === 0`, 10*time.Second); err != nil {
 		return fmt.Errorf("预热清理未同步: %w", err)
 	}
 	return waitPageStable(page)
+}
+
+// waitNoteContent 轮询数据库直到指定标题笔记的正文包含子串（自动保存同步）。
+func waitNoteContent(notes *service.NoteService, title, substr string, d time.Duration) {
+	deadline := time.Now().Add(d)
+	for time.Now().Before(deadline) {
+		if content, err := noteContentByTitle(notes, title); err == nil && strings.Contains(content, substr) {
+			return
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
 }
 
 // waitPageStable 反复写窗口标记并检查其是否存活，确认页面不再被 reload。
@@ -573,8 +603,17 @@ func reloadToNotes(page *mygo.Page, url string) error {
 	if err := loadPageDocument(page, uniquePageURL(url)+"&e2eView=note"); err != nil {
 		return err
 	}
-	if err := waitFor(page, `([...document.querySelectorAll('button')].some((item) => item.textContent?.trim() === '新建记录'))`, 15*time.Second); err != nil {
-		return fmt.Errorf("等待信息记录页: %w", err)
+	// v2 信息记录默认灵感速记态；E2E 流程进入「笔记文档」态。
+	if err := waitFor(page, `document.querySelector('.notev2 .view-tab-row') !== null`, 15*time.Second); err != nil {
+		return fmt.Errorf("等待信息记录页视图 Tab: %w", err)
+	}
+	_, _ = page.Eval(`(() => {
+		const tab = [...document.querySelectorAll('.view-tab')].find((item) => item.textContent?.includes('笔记文档'));
+		if (tab) tab.click();
+		return true;
+	})()`)
+	if err := waitFor(page, `([...document.querySelectorAll('button')].some((item) => item.textContent?.trim() === '新建笔记'))`, 15*time.Second); err != nil {
+		return fmt.Errorf("等待笔记文档态: %w", err)
 	}
 	return nil
 }
@@ -582,7 +621,7 @@ func reloadToNotes(page *mygo.Page, url string) error {
 // loadPageDocument 导航到 targetURL 并等待文档真正更换。
 //
 // WKWebView 的导航是异步提交的：LoadURL 返回时旧文档可能仍在展示；
-// 若旧文档已包含等待条件（如信息记录页的“新建记录”按钮），后续断言会
+// 若旧文档已包含等待条件（如信息记录页的“新建笔记”按钮），后续断言会
 // 在旧文档上假通过，导航提交后编辑器等状态被整体替换。因此以
 // performance.timeOrigin 变化作为“新文档已生效”的判据。
 func loadPageDocument(page *mygo.Page, targetURL string) error {

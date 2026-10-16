@@ -175,6 +175,9 @@ type AppStore = {
   linkNoteProject: (id: number, projectId: number | null) => Promise<NoteV2>;
   copyRichText: (id: number) => Promise<void>;
   runSweep: () => Promise<void>;
+  /** 信息记录 v2：当前打开的笔记 id（辅助区 ↔ 编辑器联动；null=无）。 */
+  noteActiveId: number | null;
+  setNoteActiveId: (id: number | null) => void;
 
   /** v2.0 R6：快捷入口真实服务（CRUD/分组/打开）。 */
   links: QuickLink[];
@@ -407,6 +410,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [sparksError, setSparksError] = useState<string | null>(null);
   const [notesV2, setNotesV2] = useState<NoteSummaryV2[]>([]);
   const [notesV2Loading, setNotesV2Loading] = useState(true);
+  const [noteActiveId, setNoteActiveId] = useState<number | null>(null);
 
   const loadSparks = useCallback(async (): Promise<void> => {
     setSparksLoading(true);
@@ -857,6 +861,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     linkNoteProject: linkNoteProjectAction,
     copyRichText: copyRichTextAction,
     runSweep: runSweepAction,
+    noteActiveId,
+    setNoteActiveId,
     links,
     linksLoading,
     linksError: linksError,

@@ -48,6 +48,7 @@ export function App() {
   const [auxOpen, setAuxOpen] = useState(false);
   // v3 修正③：辅助区可收起/展开（会话内状态，不跨会话持久——与侧栏收起一致）。
   const [auxCollapsed, setAuxCollapsed] = useState(false);
+
   const narrow = useNarrow();
   const showAux = auxEnabled(view) && !auxCollapsed;
 

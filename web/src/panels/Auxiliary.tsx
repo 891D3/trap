@@ -3,6 +3,7 @@
 //   其他视图：今日聚焦（日期卡/快速灵感/最近记录/项目进度，R4 起真实数据）；
 //   设置页：不渲染（由 App 控制）。
 import type { ViewId } from '../state/app-store';
+import { NoteAux } from './aux/NoteAux';
 import { TodoAux } from './aux/TodoAux';
 import { TodayFocus } from './aux/TodayFocus';
 
@@ -30,7 +31,13 @@ export function Auxiliary({ view, collapsed = false, onCollapse }: AuxiliaryProp
             <AuxCollapseIcon />
           </button>
         )}
-        {view === 'todo' ? <TodoAux /> : <TodayFocus />}
+        {view === 'todo' ? (
+        <TodoAux />
+      ) : view === 'note' ? (
+        <NoteAux onAuxCollapse={onCollapse} />
+      ) : (
+        <TodayFocus />
+      )}
       </aside>
     </div>
   );

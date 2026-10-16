@@ -52,6 +52,7 @@ type NoteV2 struct {
 type NoteSummaryV2 struct {
 	ID         int64   `json:"id"`
 	Title      string  `json:"title"`
+	Content    string  `json:"content"` // 灵感卡直接展示全文；notes 摘要视图前端忽略
 	Kind       string  `json:"kind"`
 	Archived   bool    `json:"archived"`
 	ArchivedAt *string `json:"archivedAt,omitempty"`
@@ -122,7 +123,7 @@ func (db *DB) ListNotesV2(ctx context.Context, f NoteFilterV2) ([]NoteSummaryV2,
 		// 笔记沿用 archived 布尔；灵感看 archived_at 是否为空。
 		conds = append(conds, "(archived = 0 AND kind = 'note') OR (kind = 'spark' AND archived_at IS NULL)")
 	}
-	sql := "SELECT id, title, kind, archived, archived_at, created_at, updated_at, project_id FROM notes WHERE " +
+	sql := "SELECT id, title, content, kind, archived, archived_at, created_at, updated_at, project_id FROM notes WHERE " +
 		whereJoin(conds)
 	sql += " ORDER BY created_at DESC, id DESC"
 	rows, err := db.conn.Query(ctx, sql, args...)
@@ -273,18 +274,19 @@ func scanNoteV2(r []any) NoteV2 {
 // scanNoteSummaryV2 把行映射为 NoteSummaryV2（列序见 ListNotesV2 SQL）。
 func scanNoteSummaryV2(r []any) NoteSummaryV2 {
 	var projectID *int64
-	if r[7] != nil {
-		id := columnInt(r[7])
+	if r[8] != nil {
+		id := columnInt(r[8])
 		projectID = &id
 	}
 	return NoteSummaryV2{
 		ID:         columnInt(r[0]),
 		Title:      columnText(r[1]),
-		Kind:       columnText(r[2]),
-		Archived:   columnBool(r[3]),
-		ArchivedAt: columnTextOpt(r[4]),
-		CreatedAt:  columnText(r[5]),
-		UpdatedAt:  columnText(r[6]),
+		Content:    columnText(r[2]),
+		Kind:       columnText(r[3]),
+		Archived:   columnBool(r[4]),
+		ArchivedAt: columnTextOpt(r[5]),
+		CreatedAt:  columnText(r[6]),
+		UpdatedAt:  columnText(r[7]),
 		ProjectID:  projectID,
 	}
 }
