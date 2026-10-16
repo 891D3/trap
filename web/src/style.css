@@ -565,12 +565,12 @@ input {
 .aux {
   flex: none;
   width: var(--aux-w);
+  height: 100%; /* wrapper 全高（上下布满） */
   display: flex;
   flex-direction: column;
   gap: var(--gap-block);
   overflow-y: auto;
-  padding: 20px 16px 20px 0;
-  padding-bottom: 4px;
+  padding: 44px 16px 20px 0; /* 顶部让位右上收起钮 */
 }
 
 .aux-card {
@@ -2364,6 +2364,7 @@ input {
 .aux-rail {
   position: relative;
   flex: none;
+  align-self: stretch;
   width: var(--aux-w);
   transition: width var(--dur-slow) var(--ease);
   overflow: hidden;
