@@ -82,7 +82,7 @@ export function NoteAux({
         <div className="aux-recent-head">
           <span className="aux-title-sm">最近笔记</span>
           <button
-            className="aux-mini-btn"
+            className="aux-mini-btn aux-mini-add"
             title="新建笔记"
             aria-label="新建笔记"
             onClick={() => void (async () => {
@@ -97,12 +97,12 @@ export function NoteAux({
             <IconPlus size={16} />
           </button>
           <button
-            className="aux-mini-btn"
+            className="aux-collapse-btn"
             title="收起面板"
             aria-label="收起最近笔记面板"
             onClick={onAuxCollapse}
           >
-            <IconPanelLeftOpen size={16} />
+            <IconPanelLeftOpen />
           </button>
         </div>
         {rows.map((n) => (
