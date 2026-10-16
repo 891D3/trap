@@ -1146,3 +1146,182 @@ func setDialogFields(page *mygo.Page) error {
 	})()`))
 	return err
 }
+
+// runSparkFlow 覆盖灵感速记主链路（PRD v2.1 §3.5 验收 1/2 + 标签过滤）。
+// 口径：转笔记保留原件；转待办直接生成待办；归档浮层可恢复。
+func runSparkFlow(page *mygo.Page, url string, notes *service.NoteService, todos *service.TodoService) error {
+	if err := reloadToSparks(page, url); err != nil {
+		return fmt.Errorf("spark 流程: 加载灵感速记: %w", err)
+	}
+
+	content := "侧边栏图标 hover 加 tooltip 提示"
+	if err := setSparkAndEnter(page, content); err != nil {
+		return fmt.Errorf("spark 流程: 输入灵感: %w", err)
+	}
+	if err := waitText(page, "侧边栏图标 hover", 6*time.Second, ""); err != nil {
+		return fmt.Errorf("spark 流程: 灵感卡未出现: %w", err)
+	}
+	count, err2 := mygo.EvalAs[int](page, `document.querySelectorAll('.spark-card').length`)
+	if err2 != nil || count != 1 {
+		return fmt.Errorf("spark 流程: 未处理灵感计数与卡数不符: %d err=%v", count, err2)
+	}
+
+	// 2) 转笔记 → 进入笔记文档态，原灵感保留。
+	if _, err := clickSparkAction(page, content, "转笔记"); err != nil {
+		return fmt.Errorf("spark 流程: 点击转笔记: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.note-doc-title')?.value?.includes('侧边栏图标')`, 8*time.Second); err != nil {
+		return fmt.Errorf("spark 流程: 转笔记未打开新文档: %w", err)
+	}
+	if err := reloadToSparks(page, url); err != nil {
+		return fmt.Errorf("spark 流程: 回灵感流: %w", err)
+	}
+	if err := waitText(page, "侧边栏图标 hover", 5*time.Second, ""); err != nil {
+		return fmt.Errorf("spark 流程: 原灵感应保留: %w", err)
+	}
+	// 以内容断言：ListSparks 之外的笔记用 GetNoteV2 按 id 读正文。
+	noteRows, listErr := notes.ListNotesV2(context.Background(), nil, "")
+	if listErr != nil {
+		return fmt.Errorf("spark 流程: 读库笔记: %w", listErr)
+	}
+	foundNote := false
+	for _, summary := range noteRows {
+		full, err := notes.GetNoteV2(context.Background(), summary.ID)
+		if err == nil && strings.Contains(full.Content, "> 侧边栏图标 hover 加 tooltip 提示") {
+			foundNote = true
+		}
+	}
+	if !foundNote {
+		return fmt.Errorf("spark 流程: 转笔记的正文应为引用格式: %+v", noteRows)
+	}
+
+	// 3) 转待办 → 待办生成，灵感保留。
+	if _, err := clickSparkAction(page, content, "转待办"); err != nil {
+		return fmt.Errorf("spark 流程: 点击转待办: %w", err)
+	}
+	todoList, todoErr := todos.List(context.Background(), store.TodoFilter{})
+	if todoErr != nil {
+		return fmt.Errorf("spark 流程: 读库待办: %w", todoErr)
+	}
+	foundTodo := false
+	for _, td := range todoList {
+		if td.Title == content {
+			foundTodo = true
+		}
+	}
+	if !foundTodo {
+		return fmt.Errorf("spark 流程: 转待办未生成: %+v", todoList)
+	}
+
+	// 4) 归档浮层：种子灵感 → 归档 → 浮层出现该项 → 恢复回到未处理流。
+	spArch, archErr := notes.Create(context.Background(), "待归档灵感")
+	if archErr != nil {
+		return fmt.Errorf("spark 流程: 种子归档灵感: %w", archErr)
+	}
+	if _, archErr = notes.ArchiveSpark(context.Background(), spArch.ID); archErr != nil {
+		return fmt.Errorf("spark 流程: 归档种子: %w", archErr)
+	}
+	if evalErr := reloadToSparks(page, url); evalErr != nil {
+		return fmt.Errorf("spark 流程: 刷新灵感页: %w", evalErr)
+	}
+	if _, evalErr := page.Eval(`(() => {
+		const btn = document.querySelector('.spark-archive-btn');
+		if (!btn) throw new Error('archive button not found');
+		btn.click();
+		return true;
+	})()`); evalErr != nil {
+		return fmt.Errorf("spark 流程: 打开归档浮层: %w", evalErr)
+	}
+	if err := waitText(page, "待归档灵感", 6*time.Second, ".archive-pop"); err != nil {
+		return fmt.Errorf("spark 流程: 归档浮层项未出现: %w", err)
+	}
+	if err := clickText(page, "恢复"); err != nil {
+		return fmt.Errorf("spark 流程: 点击恢复: %w", err)
+	}
+	if err := waitText(page, "待归档灵感", 6*time.Second, ".spark-card"); err != nil {
+		return fmt.Errorf("spark 流程: 恢复后未回到未处理流: %w", err)
+	}
+
+	// 5) 标签过滤：服务直建含 #选品 正文的笔记 → aux 标签出现 → 点击过滤。
+	doc, docErr := notes.Create(context.Background(), "标签标签测试")
+	if docErr != nil {
+		return fmt.Errorf("spark 流程: 种子标签笔记: %w", docErr)
+	}
+	if _, saveErr := notes.SaveNoteV2(context.Background(), doc.ID, "标签标签测试", "#选品 这条笔记用来验证标签过滤", nil); saveErr != nil {
+		return fmt.Errorf("spark 流程: 写正文标签: %w", saveErr)
+	}
+	if err := reloadToNotes(page, url); err != nil {
+		return fmt.Errorf("spark 流程: 切文档态: %w", err)
+	}
+	if err := waitText(page, "# 选品", 8*time.Second, ".aux-tag"); err != nil {
+		return fmt.Errorf("spark 流程: 常用标签未出现: %w", err)
+	}
+	if err := clickText(page, "# 选品"); err != nil {
+		return fmt.Errorf("spark 流程: 点击标签: %w", err)
+	}
+	if err := waitText(page, "标签标签测试", 6*time.Second, ".aux-note-row"); err != nil {
+		return fmt.Errorf("spark 流程: 标签过滤未生效: %w", err)
+	}
+	return nil
+}
+
+// waitText 等待页面/指定容器出现指定文本。
+func waitText(page *mygo.Page, text string, d time.Duration, scopeSelector string) error {
+	var cond string
+	if scopeSelector == "" {
+		cond = fmt.Sprintf(`document.body.innerText.includes(%q)`, text)
+	} else {
+		cond = fmt.Sprintf(`[...document.querySelectorAll(%q)].some((item) => item.textContent?.includes(%q))`, scopeSelector, text)
+	}
+	return waitFor(page, cond, d)
+}
+
+// reloadToSparks 切换到灵感速记态。
+func reloadToSparks(page *mygo.Page, url string) error {
+	if err := loadPageDocument(page, uniquePageURL(url)+"&e2eView=note"); err != nil {
+		return err
+	}
+	if err := waitFor(page, `document.querySelector('.notev2 .view-tab-row') !== null`, 15*time.Second); err != nil {
+		return fmt.Errorf("等待视图 Tab: %w", err)
+	}
+	_, _ = page.Eval(`(() => {
+		const tab = [...document.querySelectorAll('.view-tab')].find((item) => item.textContent?.includes('灵感速记'));
+		if (tab) tab.click();
+		return true;
+	})()`)
+	if err := waitFor(page, `document.querySelector('.spark-input-card') !== null`, 15*time.Second); err != nil {
+		return fmt.Errorf("等待灵感速记态: %w", err)
+	}
+	return nil
+}
+
+// setSparkAndEnter 向灵感输入卡写入内容并提交 Enter。
+func setSparkAndEnter(page *mygo.Page, text string) error {
+	_, err := page.Eval(fmt.Sprintf(`(() => {
+		const input = document.querySelector('.spark-input');
+		if (!input) throw new Error('spark input not found');
+		const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+		if (!setter) throw new Error('value setter not found');
+		input.focus();
+		setter.call(input, %s);
+		input.dispatchEvent(new Event('input', { bubbles: true }));
+		input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+		return true;
+	})()`, strconv.Quote(text)))
+	if err == nil {
+		time.Sleep(500 * time.Millisecond)
+	}
+	return err
+}
+
+// clickSparkAction 点击指定 spark 卡上的动作钮（按 aria-label/title 前缀匹配）。
+func clickSparkAction(page *mygo.Page, cardText, labelPrefix string) (bool, error) {
+	return mygo.EvalAs[bool](page, fmt.Sprintf(`(() => {
+		const card = [...document.querySelectorAll('.spark-card')].find((item) => item.textContent?.includes(%q));
+		if (!card) throw new Error('spark card not found');
+		const btn = [...card.querySelectorAll('button')].find((item) => (item.getAttribute('aria-label') ?? item.title ?? '').startsWith(%q));
+		if (!btn) throw new Error('action not found: ' + %q);
+		btn.click();
+		return true;
+	})()`, cardText, labelPrefix, labelPrefix))
+}
