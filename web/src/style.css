@@ -2372,24 +2372,3 @@ input {
 .aux-collapse-btn:hover {
   color: var(--text);
 }
-
-/* 收起后主区右上角悬浮展开钮 */
-.aux-expand-fab {
-  position: fixed;
-  top: 60px;
-  right: 12px;
-  z-index: 60;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--radius-item);
-  background: var(--surface);
-  box-shadow: var(--shadow-pop);
-  color: var(--text-2);
-}
-
-.aux-expand-fab:hover {
-  color: var(--text);
-}

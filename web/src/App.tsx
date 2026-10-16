@@ -6,7 +6,6 @@ import { useEffect, useRef, useState } from 'react';
 import { Auxiliary } from './panels/Auxiliary';
 import { MainArea } from './panels/MainArea';
 import { Sidebar } from './panels/Sidebar';
-import { IconChevronDouble } from './components/icons';
 import { DashboardView } from './panels/views/DashboardView';
 import { LinkView } from './panels/views/LinkView';
 import { NoteView } from './panels/views/NoteView';
@@ -61,7 +60,10 @@ export function App() {
         onToggleCollapsed={() => setCollapsed((c) => !c)}
       />
 
-      <MainArea view={view}>
+      <MainArea
+        view={view}
+        auxExpand={{ visible: auxEnabled(view) && auxCollapsed && !narrow, onExpand: () => setAuxCollapsed(false) }}
+      >
         {view === 'dashboard' && <DashboardView />}
         {view === 'todo' && <TodoView />}
         {view === 'note' && <NoteView />}
@@ -73,18 +75,6 @@ export function App() {
       {showAux && !narrow && (
         <Auxiliary view={view} onCollapse={() => setAuxCollapsed(true)} />
       )}
-      {/* 收起后的重开入口：主区右上角悬浮展开钮 */}
-      {auxEnabled(view) && auxCollapsed && !narrow && (
-        <button
-          className="aux-expand-fab"
-          aria-label="展开辅助区"
-          title="展开辅助区"
-          onClick={() => setAuxCollapsed(false)}
-        >
-          <IconChevronDouble size={16} />
-        </button>
-      )}
-
       {showAux && narrow && (
         <>
           {auxOpen && (

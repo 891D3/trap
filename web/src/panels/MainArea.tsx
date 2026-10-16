@@ -7,12 +7,14 @@ import type { ViewId } from '../state/app-store';
 type MainAreaProps = {
   view: ViewId;
   children: ReactNode;
+  /** 辅助区收起后：顶栏展开钮（v3 目检修正）。 */
+  auxExpand?: { visible: boolean; onExpand: () => void };
 };
 
-export function MainArea({ view, children }: MainAreaProps) {
+export function MainArea({ view, children, auxExpand }: MainAreaProps) {
   return (
     <main className="main">
-      <Topbar view={view} />
+      <Topbar view={view} auxExpand={auxExpand} />
       {/* 主内容区：底色 --bg，p12/g12（ui-baseline §二）。 */}
       <section className="view">{children}</section>
     </main>

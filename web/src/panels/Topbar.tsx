@@ -4,7 +4,7 @@
 // 主题切换按钮循环 system → light → dark（与设置页选项一致；持久化经 settings）。
 import type { ThemeSetting, ViewId } from '../state/app-store';
 import { useStore } from '../state/app-store';
-import { IconBell, IconFilter, IconMonitor, IconMoon, IconSearch, IconSun } from '../components/icons';
+import { IconBell, IconChevronDouble, IconFilter, IconMonitor, IconMoon, IconSearch, IconSun } from '../components/icons';
 
 export const VIEW_TITLE: Record<ViewId, { title: string; crumb: string }> = {
   dashboard: { title: '数据看板', crumb: '个人工作台 / 数据看板' },
@@ -31,9 +31,11 @@ const THEME_LABEL: Record<ThemeSetting, string> = {
 
 type TopbarProps = {
   view: ViewId;
+  /** 辅助区收起后出示展开钮（v3 目检：展开入口放顶栏）。 */
+  auxExpand?: { visible: boolean; onExpand: () => void };
 };
 
-export function Topbar({ view }: TopbarProps) {
+export function Topbar({ view, auxExpand }: TopbarProps) {
   const meta = VIEW_TITLE[view] ?? VIEW_TITLE.todo;
   const { theme, setTheme } = useStore();
 
@@ -76,6 +78,16 @@ export function Topbar({ view }: TopbarProps) {
         >
           {THEME_ICON[theme]}
         </button>
+        {auxExpand?.visible && (
+          <button
+            className="topbar-icon-btn"
+            aria-label="展开辅助区"
+            title="展开辅助区"
+            onClick={auxExpand.onExpand}
+          >
+            <IconChevronDouble />
+          </button>
+        )}
       </div>
     </header>
   );
