@@ -2899,9 +2899,6 @@ input {
   justify-content: flex-end;
   gap: 6px;
   margin-bottom: 10px;
-  /* 与其它页辅助区收起钮（绝对定位 top:10/right:10）对齐：
-     卡片 padding-top 14 → 这里用负外边距把按钮行提到与其它页同一水平线 */
-  margin-top: -4px;
   padding: 0 10px;
 }
 

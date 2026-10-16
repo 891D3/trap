@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { copyNoteRichText, exportNotes, listNotesV2 } from '../../api/notes';
 import { toChineseError } from '../../api/app-settings';
-import { IconPanelLeftOpen, IconPlus } from '../../components/icons';
+import { IconPlus } from '../../components/icons';
 import { useStore } from '../../state/app-store';
 
 /** 相对时间（灵感/最近笔记 meta 用）。 */
@@ -23,11 +23,7 @@ function relativeStamp(iso: string): string {
   return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export function NoteAux({
-  onAuxCollapse,
-}: {
-  onAuxCollapse?: () => void;
-}): React.JSX.Element {
+export function NoteAux(_props: { onAuxCollapse?: () => void }): React.JSX.Element {
   const { notesV2, projects, sparks, noteActiveId, addNote, setNoteActiveId } = useStore();
   const [tagFilter, setTagFilter] = useState('');
   const [tags, setTags] = useState<{ tag: string; count: number }[]>([]);
@@ -95,14 +91,6 @@ export function NoteAux({
             })()}
           >
             <IconPlus size={16} />
-          </button>
-          <button
-            className="aux-collapse-btn"
-            title="收起面板"
-            aria-label="收起最近笔记面板"
-            onClick={onAuxCollapse}
-          >
-            <IconPanelLeftOpen />
           </button>
         </div>
         {rows.map((n) => (

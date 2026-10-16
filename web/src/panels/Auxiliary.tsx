@@ -19,8 +19,8 @@ export function Auxiliary({ view, collapsed = false, onCollapse }: AuxiliaryProp
   return (
     <div className={`aux-rail${collapsed ? ' is-collapsed' : ''}`} aria-hidden={collapsed}>
       <aside className="aux">
-        {/* v3：辅助区收起按钮——note 视图在「最近笔记卡」标题行内自带，避免重复 */}
-        {onCollapse && view !== 'note' && (
+        {/* v3：辅助区收起按钮（所有视图统一：绝对定位 top:10 right:10，与顶栏同水平线） */}
+        {onCollapse && (
           <button
             className="aux-collapse-btn"
             aria-label="收起辅助区"
