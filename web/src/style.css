@@ -2930,10 +2930,10 @@ input {
   border-radius: var(--radius-item);
 }
 
-.aux-note-row:hover { background: var(--border-soft); }
+.aux-note-row:hover { background: transparent; }
 
 .aux-note-row.is-active {
-  background: #eef1f6;
+  background: transparent;
 }
 
 .aux-note-title {
