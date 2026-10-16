@@ -1957,6 +1957,7 @@ input {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 6px;
+  margin-right: 36px; /* 顶部右侧收起钮让位（月历头三钮完整可见） */
 }
 
 .aux-month-title {
