@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Auxiliary } from './panels/Auxiliary';
 import { MainArea } from './panels/MainArea';
 import { Sidebar } from './panels/Sidebar';
+import { IconChevronDouble } from './components/icons';
 import { DashboardView } from './panels/views/DashboardView';
 import { LinkView } from './panels/views/LinkView';
 import { NoteView } from './panels/views/NoteView';
@@ -46,8 +47,10 @@ export function App() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [auxOpen, setAuxOpen] = useState(false);
+  // v3 修正③：辅助区可收起/展开（会话内状态，不跨会话持久——与侧栏收起一致）。
+  const [auxCollapsed, setAuxCollapsed] = useState(false);
   const narrow = useNarrow();
-  const showAux = auxEnabled(view);
+  const showAux = auxEnabled(view) && !auxCollapsed;
 
   return (
     <div className="app">
@@ -67,7 +70,21 @@ export function App() {
         {view === 'stock' && <StockView />}
       </MainArea>
 
-      {showAux && !narrow && <Auxiliary view={view} />}
+      {showAux && !narrow && (
+        <Auxiliary view={view} onCollapse={() => setAuxCollapsed(true)} />
+      )}
+      {/* 收起后的重开入口：主区右上角悬浮展开钮 */}
+      {auxEnabled(view) && auxCollapsed && !narrow && (
+        <button
+          className="aux-expand-fab"
+          aria-label="展开辅助区"
+          title="展开辅助区"
+          onClick={() => setAuxCollapsed(false)}
+        >
+          <IconChevronDouble size={16} />
+        </button>
+      )}
+
       {showAux && narrow && (
         <>
           {auxOpen && (

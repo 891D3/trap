@@ -438,7 +438,7 @@ input {
 
 .topbar .main-title {
   margin: 0;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   line-height: 1.25;
 }
@@ -735,8 +735,8 @@ input {
 }
 
 .todo-item:hover {
-  background: var(--surface);
-  border-color: var(--border);
+  background: transparent;
+  border-color: transparent;
 }
 
 .todo-check {
@@ -790,31 +790,43 @@ input {
 /* ---------- 信息记录 ---------- */
 /* 分段控件：灰底槽 + 选中项白底浮起（模板视图切换风格） */
 .filter-tabs {
+  /* v3 修正：无灰底容器；active = 字色加深 + 下方 2px 主色条 */
   display: inline-flex;
-  gap: 2px;
-  padding: 2px;
-  background: var(--border-soft);
-  border-radius: var(--radius-ctrl);
+  gap: 4px;
 }
 
 .filter-tab {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  height: 28px;
-  padding: 0 12px;
-  border-radius: 6px;
-  font-size: 14px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 0;
+  font-size: 13px;
   line-height: 20px;
   white-space: nowrap;
   color: var(--text-2);
-  transition: all var(--dur-fast) var(--ease);
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.filter-tab:hover {
+  color: var(--text);
 }
 
 .filter-tab.is-active {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 1px 2px rgba(17, 24, 39, 0.08);
-  font-weight: 500;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.filter-tab.is-active::after {
+  content: '';
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--primary);
 }
 
 .note-grid {
@@ -1189,7 +1201,7 @@ input {
 /* 待办 + 今日信息 行 */
 .dashboard-row {
   display: grid;
-  grid-template-columns: 380px minmax(0, 1fr);
+  grid-template-columns: minmax(360px, 5fr) minmax(0, 7fr); /* 待办卡与今日信息按比例同步伸宽 */
   gap: var(--gap-block);
   flex: 1;
   min-height: 0;
@@ -1383,6 +1395,7 @@ input {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding-right: 32px; /* 让位右上角收起钮 */
 }
 
 .aux-title {
@@ -1844,6 +1857,15 @@ input {
   padding: 8px 16px;
 }
 
+/* v3 修正：标题左侧占满、项目/时刻/操作按钮统一右侧 */
+.todo-group-list .todo-text {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-size: 13px;
+  color: var(--text-body);
+}
+
 .todo-item .btn-icon {
   opacity: 0;
 }
@@ -2297,3 +2319,77 @@ input {
 [data-theme='dark'] .note-editor-panel,
 [data-theme='dark'] .project-pop,
 [data-theme='dark'] .dialog { border: 1px solid var(--border); }
+
+/* ---- 目检修正②③④（2026-10-15 晚）---- */
+
+/* 分类圆点：永远空心，选中只加深描边 + 文字加粗 */
+.category-radio .category-ring {
+  background: transparent;
+}
+
+.category-radio.is-active .category-ring {
+  background: transparent;
+  border-color: var(--primary);
+  border-width: 2px;
+}
+
+.category-radio.is-active {
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* quick-actions：左 chips / 右 分类+按钮 */
+.quick-actions-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex: none;
+}
+
+.chip.is-preview {
+  border-style: dashed;
+  border-color: transparent;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+
+/* 辅助区收起钮（任意视图右上角） */
+.aux-collapsible {
+  position: relative;
+}
+
+.aux-collapse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-item);
+  background: var(--border-soft);
+  color: var(--text-2);
+}
+
+.aux-collapse-btn:hover {
+  color: var(--text);
+}
+
+/* 收起后主区右上角悬浮展开钮 */
+.aux-expand-fab {
+  position: fixed;
+  top: 60px;
+  right: 12px;
+  z-index: 60;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-item);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+  color: var(--text-2);
+}
+
+.aux-expand-fab:hover {
+  color: var(--text);
+}

@@ -70,8 +70,9 @@ export function TodoView() {
 
   // ---- 快速创建 ----
   const [draft, setDraft] = useState('');
-  const [category, setCategory] = useState<string>('work');
+  const [category, setCategory] = useState<string>('');  // 默认不选（个人/工作/学习空心圆点）
   const [dueChip, setDueChip] = useState<{ at: Date; label: string } | null>(null);
+  const [dueSuppressed, setDueSuppressed] = useState(false); // 手动关闭「识别日期」预览，输入变化时重置
   const [projectPick, setProjectPick] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Todo | null>(null);
   const [saving, setSaving] = useState<'add' | number | null>(null);
@@ -117,6 +118,7 @@ export function TodoView() {
       setDraft('');
       setDueChip(null);
       setProjectPick(null);
+      setDueSuppressed(false);
     } catch (error: unknown) {
       setLocalError(toChineseError(error, '待办添加失败，请稍后重试'));
     } finally {
@@ -267,13 +269,21 @@ export function TodoView() {
           )}
         </div>
 
-        {(dueChip || projectPick !== null) && (
-          <div className="quick-chips">
+        {/* 操作行：左侧 = 内容输入同步解析出的日期/项目 chips；右侧 = 分类 + 添加待办 */}
+        <footer className="quick-actions">
+          <div className="quick-chips quick-live-chips">
             {dueChip && (
               <span className="chip">
                 <IconCalendar size={12} />
                 {dueChip.label}
                 <button aria-label="移除日期" onClick={() => setDueChip(null)}><IconX size={10} /></button>
+              </span>
+            )}
+            {!dueChip && parsed.due && !dueSuppressed && (
+              <span className="chip is-preview">
+                <IconCalendar size={12} />
+                {parsed.due.label}
+                <button aria-label="移除识别日期" onClick={() => setDueSuppressed(true)}><IconX size={10} /></button>
               </span>
             )}
             {projectPick !== null && (
@@ -283,27 +293,32 @@ export function TodoView() {
                 <button aria-label="移除项目" onClick={() => setProjectPick(null)}><IconX size={10} /></button>
               </span>
             )}
+            {projectPick === null && parsed.projectId !== null && (
+              <span className="chip is-preview">
+                <span className={`side-dot proj-${projects.find((p) => p.id === parsed.projectId)?.color ?? 'slate'}`} />
+                #{projects.find((p) => p.id === parsed.projectId)?.name ?? ''}
+              </span>
+            )}
           </div>
-        )}
-
-        <footer className="quick-actions">
-          <div className="category-radios" role="radiogroup" aria-label="分类">
-            {CATEGORY_KEYS.map((key) => (
-              <button
-                key={key}
-                className={`category-radio${category === key ? ' is-active' : ''}`}
-                role="radio"
-                aria-checked={category === key}
-                onClick={() => setCategory(key)}
-              >
-                <span className={`category-ring ring-${key}`} />
-                {CATEGORY_LABEL[key]}
-              </button>
-            ))}
+          <div className="quick-actions-right">
+            <div className="category-radios" role="radiogroup" aria-label="分类">
+              {CATEGORY_KEYS.map((key) => (
+                <button
+                  key={key}
+                  className={`category-radio${category === key ? ' is-active' : ''}`}
+                  role="radio"
+                  aria-checked={category === key}
+                  onClick={() => setCategory((c) => (c === key ? '' : key))}
+                >
+                  <span className={`category-ring ring-${key}`} />
+                  {CATEGORY_LABEL[key]}
+                </button>
+              ))}
+            </div>
+            <button className="btn is-primary" disabled={todosLoading || saving !== null} onClick={() => void submit()}>
+              <IconPlus />添加待办
+            </button>
           </div>
-          <button className="btn is-primary" disabled={todosLoading || saving !== null} onClick={() => void submit()}>
-            <IconPlus />添加待办
-          </button>
         </footer>
       </section>
 
