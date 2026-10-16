@@ -1,6 +1,6 @@
 # PRD — M0 工作台 MVP
 
-> 状态：**v2.0 重构版（未确认，待用户评审）**（2026-10-15，按 Ardot 设计稿 `WorkDesktop Project` v1.0 重订范围；样式与功能结构以 `docs/design/ui-baseline.md` v3 为准）。v1.1 记录见本文 §11 历史版本。
+> 状态：**v2.1（含 M0.5 信息记录 v2 章节，设计驱动 2026-10-16）**（2026-10-15，按 Ardot 设计稿 `WorkDesktop Project` v1.0 重订范围；样式与功能结构以 `docs/design/ui-baseline.md` v3 为准）。v1.1 记录见本文 §11 历史版本。
 > 覆盖范围：F1 工作台壳（重构）、F0 数据看板（新）、F2 待办列表（扩展：项目关联/日期/分类）、F3 信息记录（换肤）、F4 快捷入口（换肤）+ 数据层约定。
 > v2.0 变更依据：用户 2026-10-15 决定「先通过 Web 页面设计确定样式和功能，再进入实质性开发」；设计稿含 Dashboard 与待办两张功能页 + 全套设计规范（8 个 Section）。
 > 文内标注「拟定」的决策项，评审确认后固化为本文定稿。
@@ -104,6 +104,46 @@ CREATE TABLE quick_links (
   updated_at TEXT NOT NULL
 );
 ```
+
+## 3.5 M0.5 信息记录 v2（灵感速记 × 笔记文档，2026-10-16 新增）
+
+> 设计来源：Ardot 35:1（笔记文档态）/ 39:41（灵感速记态）；样式规格见 ui-baseline v3 §5.4a–c。
+
+### 3.5.1 数据模型（新迁移 0003_notes_evolution.sql）
+
+```sql
+ALTER TABLE notes ADD COLUMN kind        TEXT NOT NULL DEFAULT 'note';  -- 'note' | 'spark'
+ALTER TABLE notes ADD COLUMN project_id  INTEGER REFERENCES projects(id);
+ALTER TABLE notes ADD COLUMN archived_at TEXT;                         -- 灵感归档时间（笔记沿用原 archived 标记）
+-- 索引：kind/archived 查询
+```
+
+- 灵感（spark）属性集：`content`（摘要正文，纯文本）+ `project_id`；进「未处理」流。
+- 自动归档口径：未处理灵感 `updated_at` 距今 > 30 天 → 自动归档（`archived_at` 写入）；归档保留 90 天后可清除（M0.5 仅实现归档与恢复，90 天后清除由启动 sweep 顺带删除）。
+- 标签：不落库，从笔记正文解析 `#标签` token 实时统计（保持零迁移成本，PRD v2.0 §3 决策 4 口径延续）。
+
+### 3.5.2 服务接口（NoteService 扩展）
+
+```go
+func (NoteService) CreateSpark(ctx, content string, projectID *int64) (Note, error)
+func (NoteService) PromoteSpark(ctx, id int64, as string) (Note or Todo seed, error) // as: "note" | "todo"
+func (NoteService) ListSparks(ctx, includeArchived bool) ([]NoteSummary, error)
+func (NoteService) ArchiveSpark(ctx, id int64) / RestoreSpark(ctx, id int64) error
+func (NoteService) ListNotes(ctx, projectID *int64, tag string) ([]NoteSummary, error)  // 过滤扩展
+func (NoteService) LinkProject(ctx, id int64, projectID *int64) (Note, error)           // 项目关联
+func (NoteService) CopyRichText(ctx, id int64) error   // markdown → HTML 到剪贴板（富文本复制）
+// 事件：note.changed 补 kind 字段；自动归档由启动 sweep + 灵感 Tab 激活时触发
+```
+
+### 3.5.3 功能验收（M0.5）
+
+1. 灵感速记 Tab：输入卡回车保存 → 卡片入「未处理灵感」流（计数、卡内容 13px、项目色点+时间、转笔记/转待办/删除钮）；⌘⏎ 同样保存；
+2. 「转笔记」→ 新建笔记文档（标题=灵感首行截 20，正文=引用灵感），原灵感从流中移除；「转待办」→ 新建待办（title=灵感内容）；删除=二次确认；
+3. 归档：归档胶囊开浮层（30 天/90 天规则说明 + 归档项 + 恢复/删除）；归档 90 天后被 sweep 清除；
+4. 笔记文档 Tab：文档头（21 Bold 组合标题「项目 · 标题」+ 保存状态 + 代码/预览切换 + 删除；项目 chip + 更新时间 + 字数）；正文 Milkdown GFM 按 v3 排版规格渲染（列表/任务/引用/代码块含复制钮/分割线）；`/` 菜单可用；
+5. 辅助区：最近笔记卡（当前项高亮 EE F1F6、项目色点+名称+时间、新建快捷钮）、常用标签卡（正文 #标签 Top5，点击过滤）、导出卡（Markdown 导出复用 §4.4；**复制为富文本**经剪贴板 text/html；PDF 按钮置灰 tooltip「后续版本开放」，不误导）；
+6. 笔记项目关联：笔记编辑态可选项目（项目 chip 点击弹选择浮层），保存后色点/标题组合/最近笔记 meta 同步；
+7. 迁移 0003 从零重放 + kind/归档计数 Go 单测；E2E 新增 runNoteV2Flow（灵感保存/转笔记/转待办/归档浮层 + 笔记文档双模式切换 + 标签过滤）。
 
 ## 4. 功能需求
 

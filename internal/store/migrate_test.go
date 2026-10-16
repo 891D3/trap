@@ -40,19 +40,19 @@ func tableExists(t *testing.T, db *DB, table string) bool {
 func TestMigrateFreshReplay(t *testing.T) {
 	db := openTempFile(t)
 
-	// 五表全部建立（0002 新增 projects）。
+	// 表全部建立（0003 增量不改表结构，仅加列与索引）。
 	for _, table := range []string{"settings", "todos", "notes", "quick_links", "projects"} {
 		if !tableExists(t, db, table) {
 			t.Errorf("干净库迁移后缺少表 %q", table)
 		}
 	}
-	// 版本记录到 0002。
+	// 版本记录到 0003。
 	v, err := db.SchemaVersion(context.Background())
 	if err != nil {
 		t.Fatalf("读取版本: %v", err)
 	}
-	if v != 2 {
-		t.Errorf("版本 = %d, 期望 2", v)
+	if v != 3 {
+		t.Errorf("版本 = %d, 期望 3", v)
 	}
 }
 
@@ -74,7 +74,7 @@ func TestMigrateIdempotent(t *testing.T) {
 		t.Fatalf("第一次关闭: %v", err)
 	}
 
-	// 重新打开：应跳过 0001/0002，数据无损。
+	// 重新打开：应跳过 0001–0003，数据无损。
 	db2, err := Open(ctx, path)
 	if err != nil {
 		t.Fatalf("第二次打开: %v", err)
@@ -85,8 +85,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("读取版本: %v", err)
 	}
-	if v != 2 {
-		t.Errorf("版本 = %d, 期望仍为 2（不重跑）", v)
+	if v != 3 {
+		t.Errorf("版本 = %d, 期望仍为 3（不重跑）", v)
 	}
 	todo, err := db2.GetTodo(ctx, created.ID)
 	if err != nil {

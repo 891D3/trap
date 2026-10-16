@@ -62,6 +62,39 @@ export interface NoteSummary {
   updatedAt: string;
 }
 
+/** NoteSummaryV2 是 v2 列表摘要（最近笔记卡/灵感流共用）。 */
+export interface NoteSummaryV2 {
+  id: number;
+  title: string;
+  kind: string;
+  archived: boolean;
+  archivedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  projectId?: number;
+}
+
+/**
+ * NoteV2 是 v2 视角下的完整实体（兼容 Note 的字段直接由 GetNote 读取）。
+ *
+ * 使用独立结构体而非扩展 Note，避免改变既有 JSON 形状破坏 v1 契约；前端
+ * 需要的字段以 json tag 导出。
+ */
+export interface NoteV2 {
+  id: number;
+  title: string;
+  content: string;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+  /** note | spark */
+  kind: string;
+  /** 6.验证色点/组合标题 */
+  projectId?: number;
+  /** 灵感归档时间；笔记为 NULL */
+  archivedAt?: string;
+}
+
 /**
  * Project 是一个项目（含列表页所需的计数）。
  *
@@ -96,6 +129,14 @@ export interface ProjectProgress {
   color: string;
   open: number;
   total: number;
+}
+
+/** PromoteSparkResult 是「转笔记/转待办」的单值返回（mygo IPC ≤1 值 + error）。 */
+export interface PromoteSparkResult {
+  /** as="note" 时的新笔记 */
+  note?: NoteV2;
+  /** as="todo" 时的新待办 */
+  todo?: Todo;
 }
 
 /** QuickLink 是一条快捷入口。 */
@@ -134,6 +175,12 @@ export interface Settings {
   exportDir?: string;
   /** 数据目录（只读展示） */
   dataDir?: string;
+}
+
+/** SweepResult 是清扫结果（IPC 单值口径）。 */
+export interface SweepResult {
+  archived: number;
+  purged: number;
 }
 
 /** Todo 是一条待办的领域模型。时间是 UTC RFC3339 文本（AGENTS.md §4.1）。 */
@@ -274,9 +321,24 @@ export const TodoService = {
 
 /** NoteService 暴露信息记录 CRUD 与 Markdown 导出 typed IPC。 */
 export const NoteService = {
+  /** ArchiveSpark 手动归档灵感。 */
+  archiveSpark(id: number): Promise<NoteV2> {
+    return call("NoteService.ArchiveSpark", id);
+  },
+  /**
+   * CopyRichText 把笔记正文渲染为 HTML 并写入系统剪贴板（text/html + 兜底纯文本）。
+   * 依赖 mygo 桌面剪贴板 API；失败返回可读错误。
+   */
+  copyRichText(id: number): Promise<void> {
+    return call("NoteService.CopyRichText", id);
+  },
   /** Create 创建一条空记录并广播 created。 */
   create(title: string): Promise<Note> {
     return call("NoteService.Create", title);
+  },
+  /** CreateSpark 保存一条灵感速记（content 纯文本，可关联项目）。 */
+  createSpark(content: string, projectID: number | null): Promise<NoteV2> {
+    return call("NoteService.CreateSpark", content, projectID);
   },
   /** Delete 删除记录并广播 deleted。 */
   delete(id: number): Promise<void> {
@@ -293,17 +355,49 @@ export const NoteService = {
   get(id: number): Promise<Note> {
     return call("NoteService.Get", id);
   },
+  /** LinkProject 更新笔记/灵感的项目关联（chip 选择浮层保存时调用）。 */
+  linkProject(id: number, projectID: number | null): Promise<NoteV2> {
+    return call("NoteService.LinkProject", id, projectID);
+  },
   /** List 返回记录摘要；includeArchived 控制是否包含已归档记录。 */
   list(includeArchived: boolean): Promise<NoteSummary[]> {
     return call("NoteService.List", includeArchived);
+  },
+  /** ListNotesV2 列出笔记摘要（projectID/tag 过滤；tag 匹配标题或正文 #token）。 */
+  listNotesV2(projectID: number | null, tag: string): Promise<NoteSummaryV2[]> {
+    return call("NoteService.ListNotesV2", projectID, tag);
+  },
+  /** ListSparks 列出灵感（includeArchived=false 时只列未处理流）。 */
+  listSparks(includeArchived: boolean): Promise<NoteSummaryV2[]> {
+    return call("NoteService.ListSparks", includeArchived);
+  },
+  /**
+   * PromoteSpark 把灵感转成新主体。as = "note" → 新笔记文档（保留原灵感）；
+   * as = "todo" → 用注入的 TodoService peer 新建待办（title=灵感内容）。
+   * 原灵感一律保留，删除由用户手动执行（用户 2026-10-16 裁定）。
+   */
+  promoteSpark(sparkID: number, as: string): Promise<PromoteSparkResult> {
+    return call("NoteService.PromoteSpark", sparkID, as);
+  },
+  /** RestoreSpark 恢复归档灵感（回到未处理流）。 */
+  restoreSpark(id: number): Promise<NoteV2> {
+    return call("NoteService.RestoreSpark", id);
   },
   /** Save 覆盖标题与 Markdown 正文并广播 saved。 */
   save(id: number, title: string, content: string): Promise<Note> {
     return call("NoteService.Save", id, title, content);
   },
+  /** SaveNoteV2 保存标题/正文并更新项目关联（编辑态保存；无关联传 nil 以清空）。 */
+  saveNoteV2(id: number, title: string, content: string, projectID: number | null): Promise<NoteV2> {
+    return call("NoteService.SaveNoteV2", id, title, content, projectID);
+  },
   /** SetArchived 设置归档状态并广播 archived。 */
   setArchived(id: number, archived: boolean): Promise<Note> {
     return call("NoteService.SetArchived", id, archived);
+  },
+  /** SweepSparks 执行自动归档清扫（main 启动时点 + 前端进入灵感 Tab 触发）。 */
+  sweepSparks(): Promise<SweepResult> {
+    return call("NoteService.SweepSparks");
   },
 } as const;
 

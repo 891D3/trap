@@ -43,6 +43,8 @@ type ExportResult struct {
 // NoteService 暴露信息记录 CRUD 与 Markdown 导出 typed IPC。
 type NoteService struct {
 	store *store.DB
+	// todos 是「转待办」的跨服务 peer（v2.1 AttachTodoPeer 注入，非导出）。
+	todos *TodoService
 }
 
 // AttachNoteStore 注入与 AppService/TodoService 相同的数据库；包级函数不会进入 IPC。

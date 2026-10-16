@@ -40,6 +40,13 @@ func main() {
 		service.AttachNoteStore(notes, db)
 		service.AttachProjectStore(projects, db)
 		service.AttachQuickLinkStore(links, db)
+		service.AttachTodoPeer(notes, todos)
+
+		// M0.5：灵感自动归档清扫（30 天自动归档/90 天清除），启动时点；
+		// 有变动时广播 note.changed，前端刷新灵感流。
+		if _, err := notes.SweepSparks(context.Background()); err != nil {
+			log.Printf("灵感清扫失败（不阻塞启动）: %v", err)
+		}
 
 		mygo.NewWindow(mygo.WindowOptions{
 			Title:           "Trap",

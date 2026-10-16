@@ -158,6 +158,11 @@ func (db *DB) DeleteProject(ctx context.Context, id int64) error {
 			Args: []any{ts, id},
 		},
 		{
+			// v2：笔记/灵感的项目关联一并置空（PRD v2.1 §3.5；验收 4 口径）。
+			SQL:  "UPDATE notes SET project_id = NULL, updated_at = ? WHERE project_id = ?",
+			Args: []any{ts, id},
+		},
+		{
 			SQL:  "DELETE FROM projects WHERE id = ?",
 			Args: []any{id},
 		},
