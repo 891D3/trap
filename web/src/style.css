@@ -2855,8 +2855,16 @@ input {
 .aux-recent-head {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
   margin-bottom: 10px;
+}
+
+.aux-recent-head .aux-title-sm {
+  margin-right: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
 }
 
 .aux-mini-btn {
@@ -2908,6 +2916,7 @@ input {
 }
 
 .aux-note-time { font-size: 11px; color: var(--text-3); }
+.aux-note-dot { color: var(--text-3); font-size: 11px; }
 
 .aux-no { min-width: 0; }
 

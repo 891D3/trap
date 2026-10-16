@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { copyNoteRichText, exportNotes, listNotesV2 } from '../../api/notes';
 import { toChineseError } from '../../api/app-settings';
+import { IconPanelLeftClose, IconPlus } from '../../components/icons';
 import { useStore } from '../../state/app-store';
 
 /** 相对时间（灵感/最近笔记 meta 用）。 */
@@ -14,8 +15,9 @@ function relativeStamp(iso: string): string {
   if (d.toDateString() === now.toDateString()) {
     return `今天 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
   }
-  const diffDays = Math.floor((now.setHours(0, 0, 0, 0) - new Date(d).setHours(0, 0, 0, 0)) / 86400000);
-  if (diffDays <= 1) return '昨天';
+  const dayStart = (x: Date): number => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diffDays = Math.round((dayStart(now) - dayStart(d)) / 86400000);
+  if (diffDays === 1) return '昨天';
   const week = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
   if (diffDays < 7) return week[d.getDay()] ?? '';
   return `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -92,7 +94,7 @@ export function NoteAux({
               }
             })()}
           >
-            <span className="aux-mini-plus">+</span>
+            <IconPlus size={12} />
           </button>
           <button
             className="aux-mini-btn"
@@ -100,7 +102,7 @@ export function NoteAux({
             aria-label="收起最近笔记面板"
             onClick={onAuxCollapse}
           >
-            □
+            <IconPanelLeftClose size={15} />
           </button>
         </div>
         {rows.map((n) => (
@@ -112,16 +114,13 @@ export function NoteAux({
             <span className="aux-note-title">{n.title || '未命名记录'}</span>
             <span className="aux-note-meta">
               {(() => {
-                const p = n.kind !== 'spark' && (notesV2.find((x) => x.id === n.id)?.projectId ?? null);
-                const proj = p != null ? projects.find((item) => item.id === p) : null;
-                return proj ? <span className={`side-dot proj-${proj.color}`} /> : null;
-              })()}
-              {(() => {
                 const pId = notesV2.find((x) => x.id === n.id)?.projectId ?? null;
                 const proj = pId != null ? projects.find((item) => item.id === pId) : null;
-                return proj ? <span className="aux-note-proj">{proj.name}</span> : null;
+                const time = relativeStamp(notesV2.find((x) => x.id === n.id)?.updatedAt ?? '');
+                return proj
+                  ? <><span className="aux-note-proj">#{proj.name}</span><span className="aux-note-dot">·</span><span className="aux-note-time">{time}</span></>
+                  : <span className="aux-note-time">{time}</span>;
               })()}
-              <span className="aux-note-time">{relativeStamp(notesV2.find((x) => x.id === n.id)?.updatedAt ?? '')}</span>
             </span>
           </button>
         ))}
