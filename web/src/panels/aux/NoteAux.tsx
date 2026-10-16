@@ -73,25 +73,27 @@ export function NoteAux(_props: { onAuxCollapse?: () => void }): React.JSX.Eleme
 
   return (
     <>
+      {/* 新建笔记：与全局收起钮同行（收起钮在 Auxiliary 渲染，top:10 right:10） */}
+      <button
+        className="aux-mini-btn aux-add-fab"
+        title="新建笔记"
+        aria-label="新建笔记"
+        onClick={() => void (async () => {
+          try {
+            const created = await addNote('未命名记录');
+            setNoteActiveId(created.id);
+          } catch (error: unknown) {
+            console.error(toChineseError(error, '新建记录失败'));
+          }
+        })()}
+      >
+        <IconPlus size={16} />
+      </button>
+
       {/* 最近笔记卡 */}
       <div className="aux-card aux-note-recent">
         <div className="aux-recent-head">
           <span className="aux-title-sm">最近笔记</span>
-          <button
-            className="aux-mini-btn aux-mini-add"
-            title="新建笔记"
-            aria-label="新建笔记"
-            onClick={() => void (async () => {
-              try {
-                const created = await addNote('未命名记录');
-                setNoteActiveId(created.id);
-              } catch (error: unknown) {
-                console.error(toChineseError(error, '新建记录失败'));
-              }
-            })()}
-          >
-            <IconPlus size={16} />
-          </button>
         </div>
         {rows.map((n) => (
           <button

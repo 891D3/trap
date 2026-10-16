@@ -551,6 +551,7 @@ input {
 
 /* ---------- 右栏辅助区（低视觉权重：页面底色 + 细边卡片） ---------- */
 .aux {
+  position: relative; /* 收起钮（绝对定位 top:10/right:10）的定位基准 */
   flex: none;
   width: var(--aux-w);
   height: 100%; /* wrapper 全高（上下布满） */
@@ -2900,6 +2901,14 @@ input {
   gap: 6px;
   margin-bottom: 10px;
   padding: 0 10px;
+}
+
+/* 新建笔记钮：与全局收起钮同行（top:10，收起钮 right:10 宽 28 → 本钮 right:44） */
+.aux-add-fab {
+  position: absolute;
+  top: 10px;
+  right: 44px;
+  z-index: 5;
 }
 
 .aux-recent-head .aux-title-sm {
