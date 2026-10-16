@@ -471,6 +471,7 @@ input {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-left: auto; /* v4：操作组靠右（原搜索框占位已移除） */
 }
 
 .topbar-icon-btn {
