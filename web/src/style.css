@@ -42,49 +42,8 @@ input {
 /* ---------- 三栏布局（v2：贴边分栏，细边分隔，无悬浮投影） ---------- */
 .app {
   display: flex;
-  flex-direction: column;
   height: 100vh;
   background: var(--bg);
-}
-
-/* 标题栏条（TitleBarStyle=hidden）：红绿灯右侧放项目标签，整条可拖动 */
-.titlebar {
-  flex: none;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-left: 84px; /* macOS 红绿灯让位 */
-  background: var(--surface);
-  box-shadow: 0 1px 0 var(--border-soft);
-  --app-region: drag;
-  -webkit-app-region: drag;
-}
-
-.titlebar .titlebar-tabs {
-  --app-region: no-drag;
-  -webkit-app-region: no-drag;
-}
-
-.titlebar-tabs {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  overflow-x: auto;
-  max-width: 55%;
-}
-
-.titlebar-hint {
-  font-size: 12px;
-  color: var(--text-3);
-  user-select: none;
-}
-
-.app-body {
-  flex: 1;
-  min-height: 0;
-  display: flex;
 }
 
 /* 侧栏：wrapper 撑位（216 或 64），panel 绝对定位 */

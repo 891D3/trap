@@ -43,9 +43,6 @@ func main() {
 
 		mygo.NewWindow(mygo.WindowOptions{
 			Title:           "Trap",
-			// v3 目检需求：标签页做进系统标题栏行 —— 隐藏原生标题文字条但保留
-			// macOS 红绿灯，页面从窗口顶端铺满（页面内画 titlebar 条与项目标签）。
-			TitleBarStyle:   mygo.TitleBarHidden,
 			Width:           1280,
 			Height:          800,
 			MinWidth:        1024,
