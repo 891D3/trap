@@ -34,3 +34,4 @@ if ! curl -fsS "$URL" >/dev/null 2>&1; then
 fi
 
 TRAP_E2E_URL="$URL" go run -tags e2e ./e2e
+TRAP_E2E_URL="$URL" go run -tags e2e ./e2e -onboarding

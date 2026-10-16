@@ -14,7 +14,7 @@ export type AppSettings = {
 
 /** 首次启动且 SQLite 尚无设置时的展示默认值，不会自动写回数据库。 */
 export const DEFAULT_APP_SETTINGS: AppSettings = {
-  name: 'Eric',
+  name: '',
   avatarPath: '',
   theme: 'system',
   exportDir: '',
@@ -28,7 +28,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 export function normalizeSettings(settings: Settings): AppSettings {
   const theme = settings.theme === 'light' || settings.theme === 'dark' ? settings.theme : 'system';
   return {
-    name: settings.name?.trim() || DEFAULT_APP_SETTINGS.name,
+    name: settings.name?.trim() ?? DEFAULT_APP_SETTINGS.name,
     avatarPath: settings.avatarPath ?? DEFAULT_APP_SETTINGS.avatarPath,
     theme,
     exportDir: settings.exportDir ?? DEFAULT_APP_SETTINGS.exportDir,
@@ -75,5 +75,38 @@ export async function setExportDirectory(directory: string): Promise<void> {
     await AppService.setExportDir(directory);
   } catch (error) {
     throw new Error(toChineseError(error, '导出目录保存失败，请稍后重试'));
+  }
+}
+
+/* ---------- 信息记录 v2 之后：Onboarding（首次初始化） ---------- */
+
+
+
+/** 完成首次初始化（原子写入姓名/导出目录/主题/initialized）。 */
+export async function initializeApp(name: string, exportDir: string, theme: string): Promise<AppSettings> {
+  try {
+    return normalizeSettings(
+      await AppService.initialize({ name, exportDir, theme }),
+    );
+  } catch (error) {
+    throw new Error(toChineseError(error, '初始化失败，请重试'));
+  }
+}
+
+/** 原生目录选择器（初始化页/设置页共用）；取消返回空串。 */
+export async function pickDirectory(): Promise<string> {
+  try {
+    return await AppService.pickDirectory();
+  } catch (error) {
+    throw new Error(toChineseError(error, '目录选择失败，请重试'));
+  }
+}
+
+/** 用系统文件管理器打开数据目录。 */
+export async function openDataDir(): Promise<void> {
+  try {
+    await AppService.openDataDir();
+  } catch (error) {
+    throw new Error(toChineseError(error, '打开数据目录失败'));
   }
 }

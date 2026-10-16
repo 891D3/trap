@@ -292,6 +292,20 @@ export const AppService = {
   isInitialized(): Promise<boolean> {
     return call("AppService.IsInitialized");
   },
+  /**
+   * OpenDataDir 用系统文件管理器打开数据目录（初始化页与设置页共用）。
+   * 平台白名单命令（同 QuickLinkService.Open 的安全边界）：单参数、无 shell。
+   */
+  openDataDir(): Promise<void> {
+    return call("AppService.OpenDataDir");
+  },
+  /**
+   * PickDirectory 弹出原生目录选择器（Onboarding D3/设置页导出目录共用）；
+   * 用户取消返回空串。Parent 绑主窗口（macOS sheet）。
+   */
+  pickDirectory(): Promise<string> {
+    return call("AppService.PickDirectory");
+  },
   /** Ping 连通性自检：验证 mygo typed IPC 端到端链路。 */
   ping(): Promise<string> {
     return call("AppService.Ping");

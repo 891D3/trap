@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/891D3/trap/internal/store"
@@ -55,7 +57,8 @@ func (s *AppService) IsInitialized(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return st.IsInitialized(ctx)
+	ok, e := st.IsInitialized(ctx)
+	return ok, e
 }
 
 // BackfillInitialized 给存量安装静默补 initialized 标记（Onboarding 验收 5）：
@@ -70,6 +73,47 @@ func BackfillInitialized(ctx context.Context, st *store.DB) error {
 		return nil
 	}
 	return st.SetSettings(ctx, map[string]string{string(store.KeyAppInitialized): "true"})
+}
+
+// OpenDataDir 用系统文件管理器打开数据目录（初始化页与设置页共用）。
+// 平台白名单命令（同 QuickLinkService.Open 的安全边界）：单参数、无 shell。
+func (s *AppService) OpenDataDir(ctx context.Context) error {
+	if s.dataDir == "" {
+		return fmt.Errorf("service: 数据目录尚未就绪")
+	}
+	var cmdName string
+	switch runtime.GOOS {
+	case "darwin":
+		cmdName = "open"
+	case "windows":
+		cmdName = "explorer"
+	case "linux":
+		cmdName = "xdg-open"
+	default:
+		return fmt.Errorf("service: 平台 %q 暂不支持打开目录", runtime.GOOS)
+	}
+	cmd := exec.Command(cmdName, s.dataDir) // #nosec G204：固定目录单参数
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("service: 打开数据目录失败: %w", err)
+	}
+	return nil
+}
+
+// PickDirectory 弹出原生目录选择器（Onboarding D3/设置页导出目录共用）；
+// 用户取消返回空串。Parent 绑主窗口（macOS sheet）。
+func (s *AppService) PickDirectory(ctx context.Context) (string, error) {
+	paths, err := mygo.Dialog.Open(mygo.OpenDialogOptions{
+		Title:             "选择目录",
+		Directory:         true,
+		CreateDirectories: true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("service: 打开目录选择器失败: %w", err)
+	}
+	if len(paths) == 0 {
+		return "", nil
+	}
+	return paths[0], nil
 }
 
 // InitializeInput 是初始化页提交的字段（用户名必填；其余可选有默认）。

@@ -3051,3 +3051,156 @@ input {
 }
 
 .aux-export-ext { font-size: 10px; color: var(--text-3); flex: none; }
+
+/* ============ Onboarding 初始化页（Onboarding D3；视觉按用户参考图） ============ */
+
+.app-loading {
+  height: 100vh;
+  background: var(--bg);
+}
+
+/* 点阵底图 + 居中布局 */
+.onboarding {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--bg);
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  background-size: 24px 24px;
+  overflow-y: auto;
+}
+
+.onboarding-card {
+  width: 400px;
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-pop);
+  padding: 40px 48px 36px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.onboarding-avatar {
+  width: 88px;
+  height: 88px;
+  border-radius: 999px;
+  background: var(--border-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-2);
+  margin-bottom: 20px;
+}
+
+.onboarding-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.onboarding-sub {
+  margin: 6px 0 24px;
+  font-size: 14px;
+  color: var(--text-2);
+}
+
+.onboarding-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  text-align: left;
+}
+
+.onboarding-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.onboarding-form .onboarding-label:not(:first-child) {
+  margin-top: 16px;
+}
+
+.onboarding-input {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-ctrl);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface);
+  width: 100%;
+}
+
+.onboarding-input:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
+.onboarding-input[readonly] {
+  color: var(--text-2);
+  background: var(--border-soft);
+}
+
+.onboarding-dir-row {
+  display: flex;
+  gap: 8px;
+}
+
+.onboarding-dir-row .onboarding-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.onboarding-dir-btn {
+  flex: none;
+  height: 40px;
+}
+
+.onboarding-theme-row {
+  display: flex;
+  gap: 8px;
+}
+
+.onboarding-theme {
+  flex: 1;
+  height: 36px;
+  border-radius: var(--radius-ctrl);
+  border: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-2);
+  background: var(--surface);
+}
+
+.onboarding-theme.is-active {
+  border-color: var(--primary);
+  color: var(--primary);
+  font-weight: 500;
+}
+
+.onboarding-error {
+  margin-top: 12px;
+  padding: 8px 10px;
+  border-radius: var(--radius-item);
+  color: var(--danger);
+  background: var(--danger-soft);
+  font-size: 13px;
+  text-align: left;
+}
+
+.onboarding-submit {
+  margin-top: 24px;
+  height: 44px;
+  width: 100%;
+  font-size: 15px;
+}
+
+.onboarding-submit:disabled {
+  opacity: 0.6;
+}

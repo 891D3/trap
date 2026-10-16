@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -26,6 +27,14 @@ import (
 const defaultE2EURL = "http://127.0.0.1:5173/"
 
 func main() {
+	onboarding := flag.Bool("onboarding", false, "run onboarding E2E instead")
+	flag.Parse()
+	if *onboarding {
+		if err := runOnboardingE2E(); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if err := runSettingsWebViewE2E(); err != nil {
 		log.Fatal(err)
 	}
@@ -65,6 +74,14 @@ func runSettingsWebViewE2E() error {
 	}
 	if len(initialSettings) != 0 {
 		return fmt.Errorf("E2E 临时 SQLite 非空: %#v", initialSettings)
+	}
+	// Onboarding D4：既有流程假定「已初始化」用户——预置标记，避免被初始化页拦截。
+	// （Onboarding 专属用例 runOnboardingFlow 自建未初始化库另行验证。）
+	if err := db.SetSettings(context.Background(), map[string]string{
+		"user.name":        "Eric",
+		"app.initialized": "true",
+	}); err != nil {
+		return fmt.Errorf("预置 E2E 初始化标记: %w", err)
 	}
 
 	appService := &service.AppService{}

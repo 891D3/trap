@@ -7,6 +7,7 @@ import { Auxiliary } from './panels/Auxiliary';
 import { MainArea } from './panels/MainArea';
 import { Sidebar } from './panels/Sidebar';
 import { DashboardView } from './panels/views/DashboardView';
+import { OnboardingView } from './panels/OnboardingView';
 import { LinkView } from './panels/views/LinkView';
 import { NoteView } from './panels/views/NoteView';
 import { SettingsView } from './panels/views/SettingsView';
@@ -33,7 +34,7 @@ function auxEnabled(view: ViewId): boolean {
 
 export function App() {
   useTheme(); // 解析主题设置并写入 <html data-theme>
-  const { view, setView } = useStore();
+  const { view, setView, appInitialized, settingsLoading } = useStore();
 
   // 深链接初始视图（E2E 用）：仅首次挂载时覆盖 store 默认值（数据看板）。
   const deepLinkRef = useRef(false);
@@ -51,6 +52,14 @@ export function App() {
 
   const narrow = useNarrow();
   const showAux = auxEnabled(view) && !auxCollapsed;
+
+  // Onboarding D4：未初始化 → 拦截主视图显示初始化页；加载中显示空白避免闪烁。
+  if (settingsLoading) {
+    return <div className="app-loading" aria-label="加载中" />;
+  }
+  if (appInitialized === false) {
+    return <OnboardingView />;
+  }
 
   return (
     <div className="app">

@@ -11,6 +11,7 @@ import {
 import {
   DEFAULT_APP_SETTINGS,
   getAppSettings,
+  initializeApp as initializeAppAPI,
   setAppTheme,
   setExportDirectory,
   toChineseError,
@@ -28,6 +29,7 @@ import {
   type QuickLink,
 } from '../api/links';
 import type { DashboardStats } from '../mygo';
+import { AppService } from '../mygo';
 import {
   createProject,
   listProjects,
@@ -124,6 +126,9 @@ type AppStore = {
   dataDir: string;
   settingsLoading: boolean;
   settingsError: string | null;
+  /** Onboarding：是否已完成首次初始化（settings.loading 期间为 null 待判）。 */
+  appInitialized: boolean | null;
+  completeOnboarding: (input: { name: string; exportDir: string; theme: string }) => Promise<void>;
   setExportDir: (directory: string) => Promise<void>;
   /** 当前视图（v3 默认数据看板；视图切换需要跨组件，R4 起入 store）。 */
   view: ViewId;
@@ -209,6 +214,8 @@ const StoreContext = createContext<AppStore | null>(null);
 export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
   const [settingsLoading, setSettingsLoading] = useState(true);
+  // Onboarding：初始化标记（null=加载中；由 settings 返回后判定）。
+  const [appInitialized, setAppInitialized] = useState<boolean | null>(null);
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const settingsEventVersion = useRef(0);
 
@@ -220,6 +227,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       settingsEventVersion.current += 1;
       setSettings(nextSettings);
       setSettingsError(null);
+      void AppService.isInitialized().then((ok: boolean) => setAppInitialized(ok)).catch(() => undefined);
     });
     const requestedEventVersion = settingsEventVersion.current;
 
@@ -228,6 +236,14 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         // 如果请求期间已经收到其他窗口的更新，避免旧响应覆盖事件中的新值。
         if (active && settingsEventVersion.current === requestedEventVersion) {
           setSettings(nextSettings);
+        }
+      })
+      .then(async (nextSettings) => {
+        // Onboarding：初始化标记单独查询（settings 表业务键，不在 Settings DTO 中）。
+        try {
+          setAppInitialized(await AppService.isInitialized());
+        } catch {
+          setAppInitialized(false);
         }
       })
       .catch((error: unknown) => {
@@ -402,6 +418,15 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+
+  const completeOnboardingAction = useCallback(
+    async (input: { name: string; exportDir: string; theme: string }): Promise<void> => {
+      const out = await initializeAppAPI(input.name, input.exportDir, input.theme);
+      setSettings(out);
+      setAppInitialized(true);
+    },
+    [],
+  );
 
   /* ---------- 信息记录 v2（M0.5）状态 ---------- */
   const [sparks, setSparks] = useState<NoteSummaryV2[]>([]);
@@ -805,6 +830,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     dataDir: settings.dataDir,
     settingsLoading,
     settingsError,
+    appInitialized,
+    completeOnboarding: completeOnboardingAction,
     setExportDir: updateExportDir,
     todos,
     todosLoading,
