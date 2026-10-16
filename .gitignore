@@ -37,4 +37,4 @@ secrets/
 # 编辑器
 .idea/
 .vscode/
-*.swp
+*.swpweb/src/components/*.bak
