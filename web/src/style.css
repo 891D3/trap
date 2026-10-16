@@ -1111,6 +1111,7 @@ input {
   display: flex;
   flex-direction: column;
   gap: var(--gap-block);
+  flex: 1;
   min-height: 0;
 }
 
