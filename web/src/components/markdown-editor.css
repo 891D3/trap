@@ -40,3 +40,22 @@
   height: 0;
   pointer-events: none;
 }
+
+/* v4 目检：/ 快捷菜单字号缩小（Crepe 以 --crepe-base-font-size 计算，16 → 13） */
+.markdown-editor {
+  --crepe-base-font-size: 13px;
+}
+
+.markdown-editor .milkdown-slash-menu .menu-groups .menu-group li {
+  min-width: 180px;
+  padding: 9px 10px;
+  gap: 10px;
+}
+
+.markdown-editor .milkdown-slash-menu .menu-groups {
+  max-height: 320px;
+}
+
+.markdown-editor .milkdown-slash-menu .menu-groups .menu-group h6 {
+  padding: 10px 10px 6px;
+}
