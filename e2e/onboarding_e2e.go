@@ -150,4 +150,3 @@ func runOnboardingFlow(page *mygo.Page, url string, app *service.AppService) err
 	}
 	return nil
 }
-

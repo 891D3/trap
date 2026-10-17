@@ -969,6 +969,8 @@ input {
   margin: 0 0 16px;
   font-size: 14px;
   color: var(--text-2);
+  white-space: pre-line; /* title 可能含换行（多行待办），确认弹窗内保留换行显示 */
+  word-break: break-word;
 }
 
 .dialog-actions {

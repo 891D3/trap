@@ -925,8 +925,9 @@ func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, proj
 	}
 	var labelTodo *store.Todo
 	for i := range list1b {
-		// 复测反馈二轮：标签时间是正文一部分，只建 chip 不剥正文（含「# 开始时间：14:00」）。
-		if list1b[i].Title == "峰会通知 # 签到时间：13:30-13:55 # 开始时间：14:00" {
+		// 复测反馈二轮：标签时间是正文一部分，只建 chip 不剥正文；
+		// normalizeSpaces 现在保留换行（复测反馈三轮：删除确认/列表不再挤成一行）。
+		if list1b[i].Title == "峰会通知\n# 签到时间：13:30-13:55\n# 开始时间：14:00" {
 			labelTodo = &list1b[i]
 		}
 	}

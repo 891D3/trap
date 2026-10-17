@@ -15,24 +15,60 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
   let text = raw;
   let dayBase: Date | null = null;
 
-  // 1) 日期修饰词（取第一个）。
-  const dayMatch =
-    text.match(/大后天/) ??
-    text.match(/后天/) ??
-    text.match(/明天/) ??
-    text.match(/今天/) ??
-    text.match(/(?:星期|礼拜|周)([一二三四五六日天])/);
-  if (dayMatch) {
-    if (dayMatch[0] === '大后天') dayBase = shiftDays(today(), 3);
-    else if (dayMatch[0] === '后天') dayBase = shiftDays(today(), 2);
-    else if (dayMatch[0] === '明天') dayBase = shiftDays(today(), 1);
-    else if (dayMatch[0] === '今天') dayBase = today();
-    else {
-      const weekday = WEEKDAY_CODE[dayMatch[1] ?? ''];
-      if (weekday === undefined) return { title: normalizeSpaces(text), due: null };
-      dayBase = nextWeekday(today(), weekday);
+  // 1) 日期：显式「M月D日(号)」优先（复测反馈：「10月17日（本周六）」被周X 规则
+  //    抢走误判为下周六）；无显式日期再看相对词/周X。年份取当前（跨年场景罕见，
+  //    若结果在过去超过 1 天则视为明年）。
+  //    「本周X」= 本周的周X（含今天）；裸「周X」= 下一个周X（同名含今天，
+  //    与旧行为一致：nextWeekday 同名归下周，但带「本周」前缀时不跳下周）。
+  let weekdayText: string | null = null; // 待剥离的原文（日期或周X）
+  const mdMatch = text.match(/(\d{1,2})月(\d{1,2})[日号]/);
+  const thisWeekMatch = text.match(/本(?:星期|礼拜|周)([一二三四五六日天])/);
+  if (mdMatch) {
+    const mon = Number(mdMatch[1]);
+    const day = Number(mdMatch[2]);
+    if (mon >= 1 && mon <= 12 && day >= 1 && day <= 31) {
+      const now = today();
+      const d = new Date(now.getFullYear(), mon - 1, day);
+      // 已过去超过 1 天 → 视为明年（12 月输入「1月5日」场景）。
+      if (d.getTime() < now.getTime() - 86400000) d.setFullYear(d.getFullYear() + 1);
+      dayBase = d;
+      weekdayText = mdMatch[0];
     }
-    text = text.replace(dayMatch[0], ' ');
+  } else if (thisWeekMatch) {
+    const weekday = WEEKDAY_CODE[thisWeekMatch[1] ?? ''];
+    if (weekday !== undefined) {
+      // 本周（周一为一周起点）：本周一 = today - ((getDay()+6)%7)，目标 = 本周一 + (weekday-1)。
+      // 含今天与已过去的本周X（周六说「本周一」指 5 天前）。
+      const now = today();
+      const weekStart = shiftDays(now, -((now.getDay() + 6) % 7));
+      dayBase = shiftDays(weekStart, (weekday + 6) % 7);
+      weekdayText = thisWeekMatch[0];
+    }
+  } else {
+    const dayMatch =
+      text.match(/大后天/) ??
+      text.match(/后天/) ??
+      text.match(/明天/) ??
+      text.match(/今天/) ??
+      text.match(/(?:星期|礼拜|周)([一二三四五六日天])/);
+    if (dayMatch) {
+      if (dayMatch[0] === '大后天') dayBase = shiftDays(today(), 3);
+      else if (dayMatch[0] === '后天') dayBase = shiftDays(today(), 2);
+      else if (dayMatch[0] === '明天') dayBase = shiftDays(today(), 1);
+      else if (dayMatch[0] === '今天') dayBase = today();
+      else {
+        const weekday = WEEKDAY_CODE[dayMatch[1] ?? ''];
+        if (weekday === undefined) return { title: normalizeSpaces(text), due: null };
+        dayBase = nextWeekday(today(), weekday);
+      }
+      weekdayText = dayMatch[0];
+    }
+  }
+  // 复测反馈：字段值里的日期（如「【活动日期】10月17日（本周六）」）是正文内容，
+  // 不剥正文（否则残留空洞）；裸用法（「明天交报告」）仍剥。
+  if (weekdayText) {
+    const beforeDay = text.slice(0, text.indexOf(weekdayText));
+    if (!/[：:】]\s*$/.test(beforeDay)) text = text.replace(weekdayText, ' ');
   }
 
   // 2) 时刻：HH:mm / HH点(半)? / 上午|下午|晚上 N点(半)?。
@@ -48,10 +84,15 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
   //     「# 签到时间：13:30-13:55」）：用户明确意图，优先于裸时刻；
   //     同文多个标签时优先「开始时间」（如签到 13:30 vs 开始 14:00）。
   //     复测反馈：长正文含「开始时间：14:00」未生成日期时间 → 现在识别并剥离该字段。
-  const labelRe = /(开始)?时间[:：]\s*(\d{1,2}):(\d{2})(-(\d{1,2}):(\d{2}))?/g;
+  // 标签分隔符：冒号或「】」（复测反馈：「【签到时间】13:30—14:00」这种方头括号格式）；
+  // 标签名优先级：开始时间 > 活动时间 > 其它时间标签（活动=事项主时间）。
+  const labelRe = /(开始|活动)?时间[：:】]\s*(\d{1,2}):(\d{2})(?:[-—–](\d{1,2}):(\d{2}))?/g;
   let labelHit: RegExpExecArray | null = null;
   for (let m = labelRe.exec(text); m !== null; m = labelRe.exec(text)) {
-    if (m[1] === '开始' || labelHit === null) labelHit = m; // 优先「开始时间」，否则取第一个
+    // 优先级：开始(2) > 活动(1) > 第一个命中(0)。
+    const pri = m[1] === '开始' ? 2 : m[1] === '活动' ? 1 : 0;
+    const curPri = labelHit === null ? -1 : labelHit[1] === '开始' ? 2 : labelHit[1] === '活动' ? 1 : 0;
+    if (pri > curPri) labelHit = m;
   }
   if (labelHit) {
     const lhh = Number(labelHit[2]);
@@ -159,8 +200,13 @@ export function dueToRFC3339(at: Date): string {
   return at.toISOString();
 }
 
+/** 折叠多余空白但保留换行（复测反馈：多行内容在删除确认/列表里挤成一行）。 */
 function normalizeSpaces(text: string): string {
-  return text.replace(/\s+/g, ' ').trim();
+  return text
+    .split('\n')
+    .map((line) => line.replace(/[ \t\f\v]+/g, ' ').trim())
+    .filter((line) => line !== '')
+    .join('\n');
 }
 
 function today(): Date {
