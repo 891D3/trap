@@ -49,11 +49,32 @@ function sortAsc(list: Todo[]): void {
 }
 
 /** 条目右侧时间 HH:mm。 */
+/** 日期部分的完整文案（与新建 chip 同语义）：今天/明天/后天/M/D 周X。 */
+function dueDayLabel(d: Date): string {
+  const now = new Date();
+  const startOfDay = (x: Date): Date => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  const diff = Math.round((startOfDay(d).getTime() - startOfDay(now).getTime()) / 86400000);
+  if (diff === 0) return '今天';
+  if (diff === 1) return '明天';
+  if (diff === 2) return '后天';
+  const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  return `${d.getMonth() + 1}/${d.getDate()} ${WEEK[d.getDay()] ?? ''}`.trim();
+}
+
 function whenLabel(todo: Todo): string {
   if (!todo.dueDate) return '';
   const d = new Date(todo.dueDate);
   if (Number.isNaN(d.getTime())) return '';
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** 编辑态日期 chip 的完整文案（复测反馈：应与新建 chip 一致，如「今天 14:00」）。 */
+function dueChipLabel(todo: Todo): string {
+  if (!todo.dueDate) return '';
+  const d = new Date(todo.dueDate);
+  if (Number.isNaN(d.getTime())) return '';
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${dueDayLabel(d)} ${time}`;
 }
 
 export function TodoView() {
@@ -632,7 +653,7 @@ function TodoEditRow(props: {
         <div className="todo-edit-meta">
           <span className="chip">
             <IconCalendar size={12} />
-            {whenLabel(todo) || '未安排'}
+            {dueChipLabel(todo) || '未安排'}
           </span>
           {project != null && (
             <span className="chip">
