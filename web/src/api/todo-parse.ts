@@ -38,25 +38,62 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
   // 2) 时刻：HH:mm / HH点(半)? / 上午|下午|晚上 N点(半)?。
   //    bug #13：不再要求数字前有空白（「下午6点」紧邻也能命中），
   //    并支持上午/下午/晚上的 12 小时制换算（下午6点 → 18:00）。
-  const timeRe = /(上午|早上|凌晨|中午|下午|晚上)?\s*(?:(\d{1,2}):(\d{1,2})|(\d{1,2})点(半)?)/;
-  const timeMatch = text.match(timeRe);
   let hh = 9;
   let mm = 0;
   let timeLabel = '';
-  if (timeMatch) {
-    const meridiem = timeMatch[1] ?? '';
-    const rawHh = Number(timeMatch[2] ?? timeMatch[4]);
-    let hhNum = rawHh;
-    // 12 小时制换算：下午/晚上 1-11 点 +12；中午/凌晨 12 点分别归 12/0。
-    if ((meridiem === '下午' || meridiem === '晚上') && rawHh >= 1 && rawHh <= 11) hhNum = rawHh + 12;
-    if (meridiem === '凌晨' && rawHh === 12) hhNum = 0;
-    if (hhNum >= 0 && hhNum <= 23) {
-      hh = hhNum;
-      mm = timeMatch[3] ? Number(timeMatch[3]) : timeMatch[5] ? 30 : 0;
-      timeLabel = meridiem
-        ? `${meridiem}${rawHh}点${timeMatch[5] ? '半' : ''}`
-        : `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
-      text = text.replace(timeMatch[0], ' ');
+  let timeConsumed: string | null = null; // 命中的原文（用于剥离，避免误删其它正文）
+  let timeMatchMeridiem = ''; // 普通时刻命中的午前/后缀（区分孤立裸时刻与明确短语）
+
+  // 2a) 标签时间「(开始)时间：HH:mm(-HH:mm)?」（如「# 开始时间：14:00」
+  //     「# 签到时间：13:30-13:55」）：用户明确意图，优先于裸时刻；
+  //     同文多个标签时优先「开始时间」（如签到 13:30 vs 开始 14:00）。
+  //     复测反馈：长正文含「开始时间：14:00」未生成日期时间 → 现在识别并剥离该字段。
+  const labelRe = /(开始)?时间[:：]\s*(\d{1,2}):(\d{2})(-(\d{1,2}):(\d{2}))?/g;
+  let labelHit: RegExpExecArray | null = null;
+  for (let m = labelRe.exec(text); m !== null; m = labelRe.exec(text)) {
+    if (m[1] === '开始' || labelHit === null) labelHit = m; // 优先「开始时间」，否则取第一个
+  }
+  if (labelHit) {
+    const lhh = Number(labelHit[2]);
+    const lmm = Number(labelHit[3]);
+    if (lhh >= 0 && lhh <= 23 && lmm >= 0 && lmm <= 59) {
+      hh = lhh;
+      mm = lmm;
+      timeLabel = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+      timeConsumed = labelHit[0];
+      // 标签若紧随「#」联想前缀（如「# 开始时间：14:00」），连同「#」一起剥离，
+      // 否则残留孤立「#」在标题里。
+      const hashPrefix = /#\s*$/;
+      const beforeText = text.slice(0, labelHit.index);
+      const hashMatch = beforeText.match(hashPrefix);
+      text = text.replace(labelHit[0], ' ');
+      if (hashMatch) {
+        text = (beforeText.replace(hashPrefix, ' ') + text.slice(labelHit.index)).replace(/^\s+/, '');
+      }
+    }
+  }
+
+  // 2b) 普通时刻（无标签命中时才看，避免「签到时间：13:30」这类其它字段被误当安排）。
+  if (!timeConsumed) {
+    const timeRe = /(上午|早上|凌晨|中午|下午|晚上)?\s*(?:(\d{1,2}):(\d{1,2})|(\d{1,2})点(半)?)/;
+    const timeMatch = text.match(timeRe);
+    if (timeMatch) {
+      timeMatchMeridiem = timeMatch[1] ?? '';
+      const meridiem = timeMatchMeridiem;
+      const rawHh = Number(timeMatch[2] ?? timeMatch[4]);
+      let hhNum = rawHh;
+      // 12 小时制换算：下午/晚上 1-11 点 +12；中午/凌晨 12 点分别归 12/0。
+      if ((meridiem === '下午' || meridiem === '晚上') && rawHh >= 1 && rawHh <= 11) hhNum = rawHh + 12;
+      if (meridiem === '凌晨' && rawHh === 12) hhNum = 0;
+      if (hhNum >= 0 && hhNum <= 23) {
+        hh = hhNum;
+        mm = timeMatch[3] ? Number(timeMatch[3]) : timeMatch[5] ? 30 : 0;
+        timeLabel = meridiem
+          ? `${meridiem}${rawHh}点${timeMatch[5] ? '半' : ''}`
+          : `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+        timeConsumed = timeMatch[0];
+        text = text.replace(timeMatch[0], ' ');
+      }
     }
   }
 
@@ -67,10 +104,14 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
       due: { at: withTime(dayBase, hh, mm), label: timeLabel ? `${dLabel} ${timeLabel}` : dLabel },
     };
   }
-  if (timeMatch && timeLabel) {
+  if (timeConsumed && timeLabel) {
+    // 标签时间「(开始)时间：HH:mm」是用户明确意图 → 无日期词时默认今天。
+    if (labelHit) {
+      return { title: normalizeSpaces(text), due: { at: withTime(today(), hh, mm), label: `今天 ${timeLabel}` } };
+    }
     // bug #5 加固：无日期词时，仅「上午/下午/晚上 N点」这类明确时间短语才默认今天；
     // 孤立的「18:00」「6点」（如标题里的「# 开始时间：18:00」）不再被误当作安排。
-    if (timeMatch[1]) {
+    if (timeMatchMeridiem) {
       return { title: normalizeSpaces(text), due: { at: withTime(today(), hh, mm), label: `今天 ${timeLabel}` } };
     }
     // 裸 HH:mm / N点 → 不安排，把已剥离的时刻还原（避免丢字）。

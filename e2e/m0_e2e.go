@@ -907,6 +907,40 @@ func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, proj
 		return fmt.Errorf("v2 流程: due_date 断言失败: 期望 %s 实际 %s", want, got)
 	}
 
+	// 1b) 标签时间（复测反馈）：多行正文含「# 签到时间：13:30-13:55」与
+	//     「# 开始时间：14:00」→ chip 识别「今天 14:00」（开始时间优先），
+	//     签到时间区间保留在标题、开始时间字段被剥离。
+	if _, err := callSetter(page2, "峰会通知\n# 签到时间：13:30-13:55\n# 开始时间：14:00"); err != nil {
+		return fmt.Errorf("v2 流程: 输入标签时间: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.quick-chips')?.textContent?.includes('今天 14:00') === true`, 5*time.Second); err != nil {
+		return fmt.Errorf("v2 流程: 标签时间 chip 未出现: %w", err)
+	}
+	if err := pressMetaEnter(page2); err != nil {
+		return fmt.Errorf("v2 流程: 提交标签时间: %w", err)
+	}
+	list1b, err := todos.List(context.Background(), store.TodoFilter{})
+	if err != nil {
+		return fmt.Errorf("v2 流程: 读库 1b: %w", err)
+	}
+	var labelTodo *store.Todo
+	for i := range list1b {
+		// normalizeSpaces 会把换行折成空格，标签时间行被剥离后 title 为此形态。
+		if list1b[i].Title == "峰会通知 # 签到时间：13:30-13:55" {
+			labelTodo = &list1b[i]
+		}
+	}
+	if labelTodo == nil {
+		return fmt.Errorf("v2 流程: 标签时间条目未创建（titles=%v）", todoTitles(list1b))
+	}
+	if labelTodo.DueDate == nil {
+		return fmt.Errorf("v2 流程: 标签时间 due_date 为空")
+	}
+	expectedLabelDue := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 14, 0, 0, 0, loc).UTC()
+	if got, want := *labelTodo.DueDate, expectedLabelDue.Format("2006-01-02T15:04:05.000Z"); got != want {
+		return fmt.Errorf("v2 流程: 标签时间 due_date 断言失败: 期望 %s 实际 %s", want, got)
+	}
+
 	// 2) # 项目联想：输入 #前端 → 点击浮层项 → ⌘Enter 提交。
 	if _, err := callSetter(page, "#前端 解析联想待办"); err != nil {
 		return fmt.Errorf("v2 流程: 输入 # 联想: %w", err)
