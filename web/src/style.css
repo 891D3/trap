@@ -1425,6 +1425,9 @@ input {
 
 .aux-month { font-size: 12px; color: var(--text-body); }
 
+/* 复测反馈：今日聚焦日期区的农历副行（农历X月初X） */
+.aux-lunar { font-size: 12px; color: var(--text-3); }
+
 /* 复测反馈：今日信息卡右上角日期与「今日聚焦」的日期字体一致（12px） */
 .dash-today-date { font-size: 12px; color: var(--text-body); }
 .aux-sub { font-size: 11px; color: var(--text-3); }

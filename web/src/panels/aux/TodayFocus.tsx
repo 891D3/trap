@@ -1,12 +1,13 @@
 // TodayFocus —— 辅助区「今日聚焦」（ui-baseline §5.2）：
 //   今日日期卡（大日号 + 周日历条）→ 快速灵感（Enter 保存）→ 最近记录（4 条，
 //   「整理为 Markdown」导出未归档记录）→ 项目进度（进度条按项目色）。
-// 数据源：store 的 notes/projects/todos（事件驱动）。
+// 数据源：store 的 notes/projects（事件驱动）。
 import { useMemo, useState } from 'react';
 import { IconNote } from '../../components/icons';
 import { exportNotes } from '../../api/notes';
 import { toChineseError } from '../../api/app-settings';
 import { useStore } from '../../state/app-store';
+import { lunarOf } from '../../api/lunar';
 
 /** 周日历条：本周一~周日 7 胶囊，今日主色底白字。 */
 function weekStrip(): { label: string; isToday: boolean }[] {
@@ -47,6 +48,10 @@ function weekday(): string {
 export function TodayFocus(): React.JSX.Element {
   const { notes, projects, addNote, saveNote, exportNote: exportNoteUnused, setView } = useStore();
   void exportNoteUnused; // 导出能力由「整理为 Markdown」按钮承担（走 exportNotes 批量）
+
+  // 农历（模块级换算即可，日变化以天为单位；date 变化时组件随事件重渲染，
+  // 跨天未重渲染时显示昨天的农历可忽略——下次挂载会刷新）。
+  const lunar = useMemo(() => lunarOf(), []);
 
   // 最近记录：未归档按更新时间倒序取 4 条（store 列表为创建序，本地排序）。
   const recent = useMemo(
@@ -99,8 +104,11 @@ export function TodayFocus(): React.JSX.Element {
         <div className="aux-date-row">
           <span className="aux-day">{new Date().getDate()}</span>
           <span className="aux-date-text">
-            {/* 复测反馈：去掉「今日 N 项待办」副行 */}
             <span className="aux-month">{new Date().getMonth() + 1}月 · {weekday()}</span>
+            {/* 复测反馈：日期区显示农历（农历X月初X，ICU 内置中历，零依赖） */}
+            {lunar && (
+              <span className="aux-lunar">农历{lunar.month}{lunar.day}</span>
+            )}
           </span>
         </div>
         <div className="aux-week">
