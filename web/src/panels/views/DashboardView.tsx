@@ -144,11 +144,8 @@ export function DashboardView(): React.JSX.Element {
             />
           </div>
 
-          <div className="filter-tabs">
-            <span className="filter-tab is-active">全部</span>
-            <button className="filter-tab" onClick={() => setView('todo')}>进行中</button>
-            <button className="filter-tab" onClick={() => setView('todo')}>已完成</button>
-          </div>
+          {/* bug #11：去掉「进行中/已完成」假 Tab（点击只是跳转、无筛选作用，用户已裁定移除）；
+              行项末尾保留「查看全部」跳转。 */}
 
           <ul className="dash-todo-list">
             {openTodos.map((todo) => (

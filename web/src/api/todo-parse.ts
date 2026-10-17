@@ -35,17 +35,27 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
     text = text.replace(dayMatch[0], ' ');
   }
 
-  // 2) 时刻：HH:mm / HH点(半)?；无日期但有时刻 → 今天。
-  const timeMatch = text.match(/(?:\s|^)(?:(\d{1,2}):(\d{1,2})|(\d{1,2})点(半)?)/);
+  // 2) 时刻：HH:mm / HH点(半)? / 上午|下午|晚上 N点(半)?。
+  //    bug #13：不再要求数字前有空白（「下午6点」紧邻也能命中），
+  //    并支持上午/下午/晚上的 12 小时制换算（下午6点 → 18:00）。
+  const timeRe = /(上午|早上|凌晨|中午|下午|晚上)?\s*(?:(\d{1,2}):(\d{1,2})|(\d{1,2})点(半)?)/;
+  const timeMatch = text.match(timeRe);
   let hh = 9;
   let mm = 0;
   let timeLabel = '';
   if (timeMatch) {
-    const hhNum = Number(timeMatch[1] ?? timeMatch[3]);
+    const meridiem = timeMatch[1] ?? '';
+    const rawHh = Number(timeMatch[2] ?? timeMatch[4]);
+    let hhNum = rawHh;
+    // 12 小时制换算：下午/晚上 1-11 点 +12；中午/凌晨 12 点分别归 12/0。
+    if ((meridiem === '下午' || meridiem === '晚上') && rawHh >= 1 && rawHh <= 11) hhNum = rawHh + 12;
+    if (meridiem === '凌晨' && rawHh === 12) hhNum = 0;
     if (hhNum >= 0 && hhNum <= 23) {
       hh = hhNum;
-      mm = timeMatch[2] ? Number(timeMatch[2]) : timeMatch[4] ? 30 : 0;
-      timeLabel = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+      mm = timeMatch[3] ? Number(timeMatch[3]) : timeMatch[5] ? 30 : 0;
+      timeLabel = meridiem
+        ? `${meridiem}${rawHh}点${timeMatch[5] ? '半' : ''}`
+        : `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
       text = text.replace(timeMatch[0], ' ');
     }
   }
@@ -58,7 +68,13 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
     };
   }
   if (timeMatch && timeLabel) {
-    return { title: normalizeSpaces(text), due: { at: withTime(today(), hh, mm), label: `今天 ${timeLabel}` } };
+    // bug #5 加固：无日期词时，仅「上午/下午/晚上 N点」这类明确时间短语才默认今天；
+    // 孤立的「18:00」「6点」（如标题里的「# 开始时间：18:00」）不再被误当作安排。
+    if (timeMatch[1]) {
+      return { title: normalizeSpaces(text), due: { at: withTime(today(), hh, mm), label: `今天 ${timeLabel}` } };
+    }
+    // 裸 HH:mm / N点 → 不安排，把已剥离的时刻还原（避免丢字）。
+    return { title: normalizeSpaces(raw), due: null };
   }
   return { title: normalizeSpaces(text), due: null };
 }
@@ -74,11 +90,32 @@ export function extractProjectToken(
   const hit =
     projects.find((p) => p.name.toLowerCase().replace(/\s+/g, '') === name) ??
     projects.find((p) => p.name.replace(/\s+/g, '').toLowerCase().startsWith(name) && name.length > 0);
-  return { title: normalizeSpaces(raw.replace(found[0], ' ')), projectId: hit?.id ?? null };
+  // bug #5 加固：#token 未命中任何项目时不从标题剥离（如「# 开始时间：18:00」
+  // 这类正文引用），避免误删用户内容；仅命中（精确/前缀）才算项目引用。
+  if (!hit) return { title: normalizeSpaces(raw), projectId: null };
+  return { title: normalizeSpaces(raw.replace(found[0], ' ')), projectId: hit.id };
 }
 
-/** `#` 后的查询词（联想浮层用）。 */
-export function projectQuery(raw: string): string | null {
+/**
+ * `#` 后的查询词（联想浮层用）。bug #1 修复：感知光标位置——光标在某个
+ * `#` 所在行的 token 范围内（同一行、位于 # 之后）即返回该 # 后的查询词
+ * （到空白/行尾为止），文本中间新起一行输入 # 也能弹浮层；无 # 或光标
+ * 在 # 之前返回 null。
+ * @param raw 输入全文
+ * @param caret 光标偏移（textarea.selectionStart）；不传时退化为旧行为（仅文末）
+ */
+export function projectQuery(raw: string, caret?: number): string | null {
+  if (caret !== undefined) {
+    const before = raw.slice(0, caret);
+    const lineStart = before.lastIndexOf('\n') + 1;
+    const line = before.slice(lineStart);
+    const idx = line.lastIndexOf('#');
+    if (idx === -1) return null;
+    // 查询词：# 后到行尾/空白，不含后续的 #（多 token 场景取光标前最近的一个）。
+    const rest = line.slice(idx + 1);
+    const end = rest.search(/[\s#]/);
+    return end === -1 ? rest : rest.slice(0, end);
+  }
   const found = raw.match(/#([^\s#]*)$/);
   return found ? (found[1] ?? '') : null;
 }

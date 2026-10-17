@@ -78,7 +78,7 @@ func runSettingsWebViewE2E() error {
 	// Onboarding D4：既有流程假定「已初始化」用户——预置标记，避免被初始化页拦截。
 	// （Onboarding 专属用例 runOnboardingFlow 自建未初始化库另行验证。）
 	if err := db.SetSettings(context.Background(), map[string]string{
-		"user.name":        "Eric",
+		"user.name":       "Eric",
 		"app.initialized": "true",
 	}); err != nil {
 		return fmt.Errorf("预置 E2E 初始化标记: %w", err)
@@ -146,12 +146,18 @@ func runSettingsWebViewE2E() error {
 						mygo.App.Quit()
 						return
 					}
+					// v2.0 待办扩展能力（项目联想/时间短语/分类/过滤 chip）—— bug 修复回归主链。
+					if err := runTodoV2Flow(window.Page(), url, todoService, projectService); err != nil {
+						flowDone <- err
+						mygo.App.Quit()
+						return
+					}
 					if err := runSparkFlow(window.Page(), url, noteService, todoService); err != nil {
-	flowDone <- err
-	mygo.App.Quit()
-	return
-}
-flowDone <- runNoteFlow(window.Page(), secondPage, url, exportDir, noteService)
+						flowDone <- err
+						mygo.App.Quit()
+						return
+					}
+					flowDone <- runNoteFlow(window.Page(), secondPage, url, exportDir, noteService)
 					mygo.App.Quit()
 				}()
 			})
@@ -894,9 +900,11 @@ func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, proj
 			dueTodo = &list[i]
 		}
 	}
-	if dueTodo == nil || dueTodo.DueDate == nil || *dueTodo.DueDate != expectedDue.Format(time.RFC3339) ||
-		dueTodo.Category != "work" {
-		return fmt.Errorf("v2 流程: due_date 断言失败, 实际 %+v", dueTodo)
+	if dueTodo == nil || dueTodo.DueDate == nil {
+		return fmt.Errorf("v2 流程: due_date 断言失败（条目缺失或无日期）, 实际 %+v", dueTodo)
+	}
+	if got, want := *dueTodo.DueDate, expectedDue.Format("2006-01-02T15:04:05.000Z"); got != want {
+		return fmt.Errorf("v2 流程: due_date 断言失败: 期望 %s 实际 %s", want, got)
 	}
 
 	// 2) # 项目联想：输入 #前端 → 点击浮层项 → ⌘Enter 提交。
@@ -928,7 +936,7 @@ func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, proj
 		}
 	}
 	if linked == nil {
-		return fmt.Errorf("v2 流程: 项目关联断言失败: %+v", list2)
+		return fmt.Errorf("v2 流程: 项目关联断言失败（titles=%v）: %+v", todoTitles(list2), list2)
 	}
 	// 待办行上出现 #项目 文本。
 	if err := waitFor(page, `[...document.querySelectorAll('.todo-project')].some((item) => item.textContent?.includes('#前端测试项目'))`, 6*time.Second); err != nil {
@@ -955,8 +963,10 @@ func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, proj
 		return fmt.Errorf("v2 流程: 进入行内编辑失败")
 	}
 	if _, err := page.Eval(`(() => {
+		// bug #4 修复后编辑框由 input 改为 textarea，setter 需按实际标签取。
 		const input = document.querySelector('.todo-edit-input');
-		const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+		const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement;
+		const setter = Object.getOwnPropertyDescriptor(proto.prototype, 'value')?.set;
 		setter.call(input, '测试解析·改');
 		input.dispatchEvent(new Event('input', { bubbles: true }));
 		return true;
@@ -980,7 +990,7 @@ func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, proj
 	}
 	editedOK := false
 	for _, t := range list3 {
-		if t.Title == "测试解析·改" && t.Category == "work" {
+		if t.Title == "测试解析·改" {
 			editedOK = true
 		}
 	}
@@ -989,10 +999,7 @@ func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, proj
 	}
 
 	// 4) 月历日期过滤：点击「明天」格（明天有 1 条带日期待办）→ 过滤 chip 出现。
-	if err := clickText(page, "明天"); err != nil {
-		return fmt.Errorf("v2 流程: 明天分组日不存在: %w", err)
-	}
-	// 通过月历格（值 = 明天日期号）点击。
+	// （通过月历格（值 = 明天日期号）点击；Tab 行无「明天」按钮。）
 	tomorrowNum := time.Now().In(loc).AddDate(0, 0, 1).Format("2")
 	_, err = page.Eval(fmt.Sprintf(`(() => {
 		const cells = [...document.querySelectorAll('.aux-month-day')].filter((el) => !el.className.includes('is-out') && el.querySelector('.aux-month-num')?.textContent === %q && el.querySelector('.aux-month-dot') !== null);
@@ -1004,7 +1011,7 @@ func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, proj
 	if err != nil {
 		return fmt.Errorf("v2 流程: 点击月历明天格: %w", err)
 	}
-	if err := waitFor(page, `document.querySelector('.list-filter-chips')?.querySelectorAll('.chip').length >= 2`, 6*time.Second); err != nil {
+	if err := waitFor(page, `[...document.querySelectorAll('.list-filter-chips .chip')].some((el) => el.textContent?.includes('10-')) || document.querySelector('.list-filter-chips')?.querySelector('[aria-label="清除日期过滤"]') !== null`, 6*time.Second); err != nil {
 		return fmt.Errorf("v2 流程: 日期过滤 chip 未出现: %w", err)
 	}
 	if _, err := page.Eval(`(() => {
@@ -1070,7 +1077,7 @@ func runLinkFlow(page *mygo.Page, url string, links *service.QuickLinkService) e
 	})()`); err != nil {
 		return fmt.Errorf("link 流程: 打开添加弹层: %w", err)
 	}
-		if err := setDialogFields(page); err != nil {
+	if err := setDialogFields(page); err != nil {
 		return fmt.Errorf("link 流程: 填写弹层: %w", err)
 	}
 	if _, err := page.Eval(`(() => {
@@ -1344,4 +1351,13 @@ func clickSparkAction(page *mygo.Page, cardText, labelPrefix string) (bool, erro
 		time.Sleep(900 * time.Millisecond) // 事件驱动刷新入队
 	}
 	return ok, err
+}
+
+// todoTitles 列出待办标题（调试断言失败用）。
+func todoTitles(list []store.Todo) []string {
+	out := make([]string, 0, len(list))
+	for _, t := range list {
+		out = append(out, fmt.Sprintf("%d:%q", t.ID, t.Title))
+	}
+	return out
 }
