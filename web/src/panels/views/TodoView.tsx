@@ -620,7 +620,8 @@ function TodoEditRow(props: {
           }}
         />
       </div>
-      {/* bug #3：日期/项目 chip 与分类单选合入底部同一行，位于取消/保存按钮左侧。 */}
+      {/* bug #3：底部一行 = 左侧日期/项目 chip，右侧分类单选紧挨取消/保存（用户复测反馈：
+          单选应靠右与按钮同组，而非跟在 chip 后）。 */}
       <div className="todo-edit-footer">
         <div className="todo-edit-meta">
           <span className="chip">
@@ -636,20 +637,20 @@ function TodoEditRow(props: {
               </button>
             </span>
           )}
-          <div className="category-radios" role="radiogroup" aria-label="分类">
-            {CATEGORY_KEYS.map((key) => (
-              <button
-                key={key}
-                className={`category-radio${category === key ? ' is-active' : ''}`}
-                role="radio"
-                aria-checked={category === key}
-                onClick={() => setCategory(key)}
-              >
-                <span className={`category-ring ring-${key}`} />
-                {CATEGORY_LABEL[key]}
-              </button>
-            ))}
-          </div>
+        </div>
+        <div className="category-radios" role="radiogroup" aria-label="分类">
+          {CATEGORY_KEYS.map((key) => (
+            <button
+              key={key}
+              className={`category-radio${category === key ? ' is-active' : ''}`}
+              role="radio"
+              aria-checked={category === key}
+              onClick={() => setCategory(key)}
+            >
+              <span className={`category-ring ring-${key}`} />
+              {CATEGORY_LABEL[key]}
+            </button>
+          ))}
         </div>
         <div className="todo-edit-buttons">
           <button className="btn" disabled={saving !== null} onClick={() => setEditingId(null)}>取消</button>
