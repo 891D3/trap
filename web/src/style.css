@@ -1405,51 +1405,17 @@ input {
   color: var(--text-3);
 }
 
-/* 今日信息时间轴 */
-.today-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  min-height: 0;
+/* 今日信息 tab（标题页）：无内容列表，仅居中日期弱化展示 */
+.today-empty {
   flex: 1;
-}
-
-.today-item {
+  min-height: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 0;
+  justify-content: center;
+}
+
+.today-empty .dash-today-date {
   font-size: 13px;
-}
-
-.today-time {
-  width: 44px;
-  flex: none;
-  font-size: 12px;
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-}
-
-.today-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  flex: none;
-  background: var(--slate-300);
-}
-
-.today-dot.is-done { background: var(--down); }
-.today-dot.is-open { background: var(--primary); }
-.today-dot.is-note { background: var(--slate-400); }
-
-.today-title {
-  flex: 1;
-  min-width: 0;
-  color: var(--text-body);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* 分类徽章（个人/工作/学习） */

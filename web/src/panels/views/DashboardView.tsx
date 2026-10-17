@@ -31,16 +31,6 @@ function MiniBars(): React.JSX.Element {
   );
 }
 
-/** 今日信息行的时间列：RFC3339 → HH:mm（本地时区）。 */
-function timeLabel(at: string | null | undefined): string {
-  if (!at) return '—';
-  const d = new Date(at);
-  if (Number.isNaN(d.getTime())) return '—';
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
-}
-
 export function DashboardView(): React.JSX.Element {
   const { stats, todos, projects, addTodo, setTodoDone, deleteTodo, setView } = useStore();
 
@@ -264,19 +254,9 @@ export function DashboardView(): React.JSX.Element {
 
           {infoTab === 'today' ? (
             <>
-              <ul className="today-list">
-                {(stats?.todayAgenda ?? []).map((item) => (
-                  <li key={`${item.kind}-${item.refId}`} className="today-item">
-                    <span className="today-time">{timeLabel(item.at)}</span>
-                    <span className={`today-dot ${dotClass(item)}`} />
-                    <span className="today-title">{item.title}</span>
-                    <span className={`note-badge ${badgeClass(item)}`}>{badgeText(item)}</span>
-                  </li>
-                ))}
-                {(stats?.todayAgenda?.length ?? 0) === 0 && (
-                  <li className="dash-empty">今天暂时没有信息</li>
-                )}
-              </ul>
+              {/* 今日信息 tab 仅作标题页：待办内容与侧栏「待办事项」重复，已取消展示。
+                  这里只保留底部项目进行中统计。 */}
+              <div className="today-empty" />
 
               <footer className="today-foot">
                 <span>项目进行中 {projects.filter((p) => p.openTodos > 0).length} 个</span>
@@ -328,20 +308,4 @@ function todayLabel(): string {
   return `${now.getMonth() + 1}月${now.getDate()}日 · ${week[now.getDay()]}`;
 }
 
-type AgendaItem = NonNullable<ReturnType<typeof useStore>['stats']>['todayAgenda'][number];
 
-/** 时间轴状态点：todo-done 绿（下跌绿浅底覆盖已完成的正向语义）、todo 未完成蓝（进行中）、note 灰蓝。 */
-function dotClass(item: AgendaItem): string {
-  if (item.kind === 'note') return 'is-note';
-  return item.status === 'done' ? 'is-done' : 'is-open';
-}
-
-function badgeClass(item: AgendaItem): string {
-  if (item.kind === 'note') return 'badge-note';
-  return item.status === 'done' ? 'badge-done' : 'badge-open';
-}
-
-function badgeText(item: AgendaItem): string {
-  if (item.kind === 'note') return '已记录';
-  return item.status === 'done' ? '已完成' : '待开始';
-}
