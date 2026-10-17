@@ -956,6 +956,10 @@ func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, proj
 	})()`); err != nil {
 		return fmt.Errorf("v2 流程: 点击联想项: %w", err)
 	}
+	// 复测反馈：选中后浮层应退出（选中后 token=#项目名 仍在联想中，需抑制）。
+	if err := waitFor(page, `document.querySelector('.project-pop') === null`, 3*time.Second); err != nil {
+		return fmt.Errorf("v2 流程: 选中项目后浮层未退出: %w", err)
+	}
 	if err := pressMetaEnter(page); err != nil {
 		return fmt.Errorf("v2 流程: 提交联想: %w", err)
 	}

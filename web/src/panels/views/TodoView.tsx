@@ -81,6 +81,9 @@ export function TodoView() {
   const [category, setCategory] = useState<string>('');  // 默认不选（个人/工作/学习空心圆点）
   const [dueChip, setDueChip] = useState<{ at: Date; label: string } | null>(null);
   const [dueSuppressed, setDueSuppressed] = useState(false); // 手动关闭「识别日期」预览，输入变化时重置
+  // 复测反馈：选中项目后浮层不退出——因选中后光标处 token 变为「#项目名」仍在联想中。
+  // 选中后抑制浮层，输入变化（onChange）时重置恢复联想。
+  const [projectPopSuppressed, setProjectPopSuppressed] = useState(false);
   const [projectPick, setProjectPick] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Todo | null>(null);
   const [saving, setSaving] = useState<'add' | number | null>(null);
@@ -127,8 +130,10 @@ export function TodoView() {
       const nextDraft = draft.slice(0, hashAt) + `#${name}` + draft.slice(tokenEnd);
       setDraft(nextDraft);
       quickDraftCache.text = nextDraft;
+      setProjectPopSuppressed(true); // 选中后关闭浮层（光标处 token 已是 #项目名，仍会命中联想）
     } else {
       setProjectPick(id);
+      setProjectPopSuppressed(true);
     }
   };
 
@@ -309,6 +314,7 @@ export function TodoView() {
             onChange={(e) => {
               setDraft(e.target.value);
               setCaret(e.target.selectionStart);
+              setProjectPopSuppressed(false); // 输入变化恢复项目联想（选中后曾抑制）
               quickDraftCache.text = e.target.value;  // bug #8：草稿实时落缓存
             }}
             onClick={(e) => setCaret(e.currentTarget.selectionStart)}
@@ -321,7 +327,7 @@ export function TodoView() {
             }}
           />
 
-          {query !== null && (
+          {query !== null && !projectPopSuppressed && (
             <ProjectPopover
               anchor={quickRef.current}
               text={draft}
