@@ -221,7 +221,7 @@ export function DashboardView(): React.JSX.Element {
           <header className="dash-card-head">
             <div className="dash-info-tabs">
               <button
-                className={`info-tab${infoTab === 'today' ? ' is-active' : ''}`}
+                className={`info-tab is-title${infoTab === 'today' ? ' is-active' : ''}`}
                 onClick={() => setInfoTab('today')}
               >
                 今日信息

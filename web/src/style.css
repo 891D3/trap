@@ -1263,6 +1263,22 @@ input {
   background: var(--border-soft);
 }
 
+/* 「今日信息」作为卡片标题（与待办事项标题同款）：无灰底药丸，粗体黑字；
+   选中态仅变主色，不加背景。 */
+.info-tab.is-title {
+  margin-right: 8px;
+  padding-left: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.info-tab.is-title:hover,
+.info-tab.is-title.is-active {
+  color: var(--text);
+  background: transparent;
+}
+
 .dash-head-right {
   display: flex;
   align-items: center;
