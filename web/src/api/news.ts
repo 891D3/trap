@@ -6,7 +6,10 @@ export type { NewsItem };
 
 /** 渠道定义（标签页）：key 与 Go 侧 newsPlatforms 一致。 */
 export const NEWS_CHANNELS = [
-  { key: 'weibo', label: '微博' },
+  { key: 'tenxunwang', label: '腾讯网' },
+  { key: 'douyin', label: '抖音' },
+  { key: 'eastmoney', label: '东方财经' },
+  { key: 'xueqiu', label: '雪球' },
 ] as const;
 
 export type NewsChannelKey = (typeof NEWS_CHANNELS)[number]['key'];

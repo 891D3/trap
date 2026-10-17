@@ -336,6 +336,10 @@ export const AppService = {
   updateProfile(name: string, avatarPath: string): Promise<Settings> {
     return call("AppService.UpdateProfile", name, avatarPath);
   },
+  /** Version 返回应用版本号（前端侧栏底部展示）。 */
+  version(): Promise<string> {
+    return call("AppService.Version");
+  },
 } as const;
 
 /**

@@ -210,11 +210,19 @@ input {
   color: var(--text);
 }
 
+/* 侧栏底部设置行右侧的版本号（弱化展示，如 v0.3.1）。 */
+.side-version {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+
 .side-item.is-active {
   /* v3：左侧 3px 主色指示条 + 主色文字；禁止用圆角色块做选中高亮 */
   color: var(--primary);
-  font-weight: 600;
-  position: relative;
+  font-weight: 600;  position: relative;
 }
 
 .nav-ind {

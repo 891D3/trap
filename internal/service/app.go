@@ -38,6 +38,10 @@ const (
 	ThemeDark   = "dark"
 )
 
+// appVersion 应用版本号：与 mygo.config.ts 的 version 保持一致
+//（发版时两处同步改；前端侧栏底部与设置页展示）。
+const appVersion = "0.3.1"
+
 // AppService 提供应用级基础能力（设置读写、连通性自检）。
 //
 // 生命周期：main 在 Bind 时注册零值；数据库在 App.WhenReady 中打开后
@@ -50,6 +54,9 @@ type AppService struct {
 
 // Ping 连通性自检：验证 mygo typed IPC 端到端链路。
 func (s *AppService) Ping() string { return "pong" }
+
+// Version 返回应用版本号（前端侧栏底部展示）。
+func (s *AppService) Version() string { return appVersion }
 
 // IsInitialized 读取首次安装初始化标记（Onboarding D2；读不到 = 未初始化）。
 func (s *AppService) IsInitialized(ctx context.Context) (bool, error) {

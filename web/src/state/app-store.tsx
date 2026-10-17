@@ -128,6 +128,8 @@ type AppStore = {
   settingsError: string | null;
   /** Onboarding：是否已完成首次初始化（settings.loading 期间为 null 待判）。 */
   appInitialized: boolean | null;
+  /** 应用版本号（侧栏底部展示；Go 侧与 mygo.config.ts 同步）。 */
+  appVersion: string;
   completeOnboarding: (input: { name: string; exportDir: string; theme: string }) => Promise<void>;
   setExportDir: (directory: string) => Promise<void>;
   /** 当前视图（v3 默认数据看板；视图切换需要跨组件，R4 起入 store）。 */
@@ -216,6 +218,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
   const [settingsLoading, setSettingsLoading] = useState(true);
   // Onboarding：初始化标记（null=加载中；由 settings 返回后判定）。
   const [appInitialized, setAppInitialized] = useState<boolean | null>(null);
+  const [appVersion, setAppVersion] = useState(''); // 侧栏底部版本号（Go 侧 mygo.config.ts 同步）
   const [settingsError, setSettingsError] = useState<string | null>(null);
   const settingsEventVersion = useRef(0);
 
@@ -230,6 +233,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       void AppService.isInitialized().then((ok: boolean) => setAppInitialized(ok)).catch(() => undefined);
     });
     const requestedEventVersion = settingsEventVersion.current;
+
+    // 版本号只在启动时读一次（读失败不影响其它功能，展示为空即可）。
+    void AppService.version().then(setAppVersion).catch(() => undefined);
 
     void getAppSettings()
       .then((nextSettings) => {
@@ -834,6 +840,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     settingsLoading,
     settingsError,
     appInitialized,
+    appVersion,
     completeOnboarding: completeOnboardingAction,
     setExportDir: updateExportDir,
     todos,

@@ -14,7 +14,7 @@ func TestNewsServiceFetch(t *testing.T) {
 	srv := &NewsService{client: &http.Client{Timeout: 2 * time.Second}}
 
 	// 1) 不支持的渠道 → 报错。
-	if _, err := srv.Fetch(context.Background(), "douyin", false); err == nil {
+	if _, err := srv.Fetch(context.Background(), "weibo", false); err == nil {
 		t.Fatal("期望不支持的渠道报错，实际 nil")
 	}
 
@@ -30,10 +30,10 @@ func TestNewsServiceFetch(t *testing.T) {
 		_, _ = w.Write(body)
 	}))
 	defer ts.Close()
-	newsPlatforms["weibo"] = ts.URL
-	defer delete(newsPlatforms, "weibo") // 还原，避免污染其它用例
+	newsPlatforms["tenxunwang"] = ts.URL
+	defer delete(newsPlatforms, "tenxunwang") // 还原，避免污染其它用例
 
-	items, err := srv.Fetch(context.Background(), "weibo", false)
+	items, err := srv.Fetch(context.Background(), "tenxunwang", false)
 	if err != nil {
 		t.Fatalf("Fetch: %v", err)
 	}
@@ -43,7 +43,7 @@ func TestNewsServiceFetch(t *testing.T) {
 
 	// 3) 缓存命中：渠道源挂掉后仍返回缓存（降级）。
 	ts.Close()
-	cached, err := srv.Fetch(context.Background(), "weibo", false)
+	cached, err := srv.Fetch(context.Background(), "tenxunwang", false)
 	if err != nil {
 		t.Fatalf("缓存降级不应报错: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestNewsServiceFetch(t *testing.T) {
 	}
 
 	// 4) force 拉取 + 源挂掉 → 报错（无可用缓存降级之外的路径）。
-	if _, err := srv.Fetch(context.Background(), "weibo", true); err == nil {
+	if _, err := srv.Fetch(context.Background(), "tenxunwang", true); err == nil {
 		t.Fatal("force 且源挂掉应报错")
 	}
 }

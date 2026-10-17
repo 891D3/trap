@@ -29,7 +29,10 @@ type NewsItem struct {
 
 // 支持的渠道（标签页）定义：key = 接口 platform 参数。
 var newsPlatforms = map[string]string{
-	"weibo": "https://news.orz.ai/api/v1/dailynews/",
+	"tenxunwang": "https://news.orz.ai/api/v1/dailynews/",
+	"douyin":     "https://news.orz.ai/api/v1/dailynews/",
+	"eastmoney":  "https://news.orz.ai/api/v1/dailynews/",
+	"xueqiu":     "https://news.orz.ai/api/v1/dailynews/",
 }
 
 const (

@@ -741,7 +741,9 @@ func noteContentByTitle(notes *service.NoteService, title string) (string, error
 func clickSettings(page *mygo.Page) error {
 	time.Sleep(500 * time.Millisecond)
 	_, err := page.Eval(`(() => {
-		const button = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim() === '设置');
+		// 按 side-label 子元素定位（设置按钮内还有版本号 span，不能整按钮 textContent 精确匹配）。
+		const label = [...document.querySelectorAll('.side-label')].find((item) => item.textContent?.trim() === '设置');
+		const button = label?.closest('button');
 		if (!button) throw new Error('settings button not found');
 		button.focus();
 		button.click();
