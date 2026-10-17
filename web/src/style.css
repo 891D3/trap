@@ -1271,6 +1271,7 @@ input {
   font-size: 14px;
   font-weight: 700;
   color: var(--text);
+  cursor: default; /* 标题不是可点击控件，去掉手型指针 */
 }
 
 .info-tab.is-title:hover,
