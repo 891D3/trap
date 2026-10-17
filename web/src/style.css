@@ -1828,6 +1828,13 @@ input {
 .list-tabs-row .list-tabs { padding: 0; }
 .list-tabs-row .list-filter-chips { padding: 0; }
 
+/* 复测反馈：分类筛选 chip 的色圈（与辅助区按属性看的空心圈同色系） */
+.list-filter-chips .category-ring {
+  width: 8px;
+  height: 8px;
+  border-width: 2px;
+}
+
 .tab-count {
   color: var(--text-3);
   font-size: 11px;

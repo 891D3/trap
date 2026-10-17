@@ -446,6 +446,8 @@ export function TodoView() {
             )}
             {auxCategoryFilter !== '' && (
               <span className="chip">
+                {/* 复测反馈：分类筛选 chip 也带分类色圆点（与项目 chip 的色点一致） */}
+                <span className={`category-ring ring-${auxCategoryFilter}`} />
                 {CATEGORY_LABEL[auxCategoryFilter] ?? auxCategoryFilter}
                 <button aria-label="清除分类过滤" onClick={() => setAuxCategoryFilter('')}><IconX size={10} /></button>
               </span>
