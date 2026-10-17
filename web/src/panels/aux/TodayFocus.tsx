@@ -45,7 +45,7 @@ function weekday(): string {
 }
 
 export function TodayFocus(): React.JSX.Element {
-  const { notes, projects, todos, addNote, saveNote, exportNote: exportNoteUnused, setView } = useStore();
+  const { notes, projects, addNote, saveNote, exportNote: exportNoteUnused, setView } = useStore();
   void exportNoteUnused; // 导出能力由「整理为 Markdown」按钮承担（走 exportNotes 批量）
 
   // 最近记录：未归档按更新时间倒序取 4 条（store 列表为创建序，本地排序）。
@@ -99,8 +99,8 @@ export function TodayFocus(): React.JSX.Element {
         <div className="aux-date-row">
           <span className="aux-day">{new Date().getDate()}</span>
           <span className="aux-date-text">
+            {/* 复测反馈：去掉「今日 N 项待办」副行 */}
             <span className="aux-month">{new Date().getMonth() + 1}月 · {weekday()}</span>
-            <span className="aux-sub">今日 {todos.filter((t) => !t.done).length} 项待办</span>
           </span>
         </div>
         <div className="aux-week">
