@@ -35,9 +35,12 @@ export function lunarOf(date: Date = new Date()): LunarInfo | null {
     }).formatToParts(date);
     const month = parts.find((p) => p.type === 'month')?.value ?? '';
     const dayRaw = parts.find((p) => p.type === 'day')?.value ?? '';
+    if (!month || !dayRaw) return null;
+    // ICU 行为差异：node（full-icu）day 返回数字「8」，WKWebView（macOS ICU）
+    // day 直接返回中文序数「初八」。兼容两种：数字才需要转换，中文直接用。
     const dayNum = Number(dayRaw);
-    if (!month || !Number.isFinite(dayNum)) return null;
-    return { month, day: lunarDayCN(dayNum) };
+    const day = Number.isFinite(dayNum) ? lunarDayCN(dayNum) : dayRaw;
+    return { month, day };
   } catch {
     return null;
   }
