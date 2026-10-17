@@ -643,6 +643,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         setProjectFilter((current) => (current === payload.projectId ? null : current));
       }
     });
+    // 启动时初始加载（复测反馈：侧栏项目默认空，新增一条后才加载——此前只在
+    // ProjectChanged 事件时拉取，无启动加载）。
+    void loadProjects(true);
     return unsubscribe;
   }, [loadProjects, loadStats]);
 

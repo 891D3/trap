@@ -61,15 +61,8 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
       mm = lmm;
       timeLabel = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
       timeConsumed = labelHit[0];
-      // 标签若紧随「#」联想前缀（如「# 开始时间：14:00」），连同「#」一起剥离，
-      // 否则残留孤立「#」在标题里。
-      const hashPrefix = /#\s*$/;
-      const beforeText = text.slice(0, labelHit.index);
-      const hashMatch = beforeText.match(hashPrefix);
-      text = text.replace(labelHit[0], ' ');
-      if (hashMatch) {
-        text = (beforeText.replace(hashPrefix, ' ') + text.slice(labelHit.index)).replace(/^\s+/, '');
-      }
+      // 复测反馈：正文里「# 开始时间：14:00」是内容的一部分（与「签到时间」等字段
+      // 并列，剥离后正文语义残缺），标签时间只建 chip、不剥正文。
     }
   }
 
