@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2026-10-17 v0.3.0 实测 bug 清单录入与分析 · Trap Devlog</title>
+<style>
+  /* ============ 设计令牌（与 web/src/style.css 对齐） ============ */
+  :root {
+    --bg: #F7F8FA;
+    --card: #FFFFFF;
+    --text: #18181B;
+    --text-2: #3F3F46;
+    --text-3: #71717A;
+    --line: #E4E4E7;
+    --line-2: #F1F4F8;
+    --primary: #566C8C;
+    --primary-soft: #EEF2F7;
+    --danger: #DC2626;
+    --danger-soft: #FEF2F2;
+    --warn: #D97706;
+    --warn-soft: #FFF7ED;
+    --ok: #059669;
+    --ok-soft: #ECFDF5;
+    --radius: 12px;
+    --shadow: 0 1px 2px rgba(24,24,27,.04), 0 4px 16px rgba(24,24,27,.04);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px 64px;
+    background: var(--bg); color: var(--text);
+    font: 14px/1.75 -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-variant-numeric: tabular-nums;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+
+  /* ============ 页头 ============ */
+  header.doc {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 16px; padding: 24px 28px; box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  header.doc h1 { margin: 0 0 8px; font-size: 22px; font-weight: 700; letter-spacing: .2px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--text-3); font-size: 12px; }
+  .meta code {
+    background: var(--line-2); border-radius: 6px; padding: 1px 6px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--text-2);
+  }
+  .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    height: 24px; padding: 0 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 500; background: var(--line-2); color: var(--text-2);
+  }
+  .badge.p1 { background: var(--danger-soft); color: var(--danger); }
+  .badge.p2 { background: var(--warn-soft); color: var(--warn); }
+  .badge.p3 { background: var(--primary-soft); color: var(--primary); }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+
+  /* ============ 卡片与章节 ============ */
+  section.card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 16px; padding: 22px 28px 26px; box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  h2 {
+    margin: 0 0 14px; font-size: 16px; font-weight: 700;
+    display: flex; align-items: center; gap: 9px;
+  }
+  h2 .bar { width: 3px; height: 15px; border-radius: 2px; background: var(--primary); flex: none; }
+  h3 { margin: 22px 0 10px; font-size: 14px; font-weight: 600; color: var(--text-2); }
+  h3:first-of-type { margin-top: 4px; }
+  p { margin: 0 0 10px; color: var(--text-2); }
+  ul { margin: 0 0 12px; padding-left: 20px; }
+  li { margin: 4px 0; color: var(--text-2); }
+  strong { color: var(--text); font-weight: 600; }
+  code {
+    background: var(--line-2); border-radius: 5px; padding: 1px 5px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #B45309;
+  }
+  .path { color: var(--primary); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+  .lead {
+    background: var(--primary-soft); border-left: 3px solid var(--primary);
+    border-radius: 0 8px 8px 0; padding: 12px 16px; margin: 0 0 16px;
+    color: var(--text-2); font-size: 13px;
+  }
+  .lead strong { color: var(--primary); }
+
+  /* ============ 表格 ============ */
+  table { width: 100%; border-collapse: collapse; margin: 4px 0 14px; font-size: 12.5px; }
+  th {
+    text-align: left; padding: 9px 10px; background: var(--line-2);
+    font-weight: 600; font-size: 12px; color: var(--text-2);
+    border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  td { padding: 9px 10px; border-bottom: 1px solid var(--line-2); vertical-align: top; color: var(--text-2); }
+  tr:last-child td { border-bottom: none; }
+  td.num { color: var(--text-3); font-family: ui-monospace, Menlo, monospace; width: 28px; }
+  td.sev { white-space: nowrap; font-weight: 600; }
+  .sev-p1 { color: var(--danger); }
+  .sev-p2 { color: var(--warn); }
+  .sev-p3 { color: var(--primary); }
+  td .st {
+    display: inline-block; padding: 1px 8px; border-radius: 999px;
+    background: var(--warn-soft); color: var(--warn); font-size: 11px; white-space: nowrap;
+  }
+  .cls { display: inline-block; padding: 1px 7px; border-radius: 5px; font-size: 11px; font-weight: 600; }
+  .cls-a { background: var(--danger-soft); color: var(--danger); }
+  .cls-b { background: var(--warn-soft); color: var(--warn); }
+  .cls-c { background: var(--primary-soft); color: var(--primary); }
+
+  /* ============ 机制卡 ============ */
+  .mech {
+    border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 16px 18px; margin: 0 0 12px; background: #FCFCFD;
+  }
+  .mech-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .mech-no {
+    flex: none; width: 22px; height: 22px; border-radius: 6px; background: var(--primary);
+    color: #fff; font-size: 12px; font-weight: 700; display: grid; place-items: center;
+  }
+  .mech-title { font-size: 14px; font-weight: 700; color: var(--text); }
+  .mech-tag {
+    font-size: 11px; padding: 1px 8px; border-radius: 999px;
+    background: var(--line-2); color: var(--text-3); white-space: nowrap;
+  }
+  .mech p { margin: 0 0 8px; font-size: 13px; }
+  .mech p:last-child { margin-bottom: 0; }
+  .mech .why { color: var(--text-3); font-size: 12.5px; }
+
+  /* ============ 三件事 ============ */
+  .top3 { counter-reset: t3; }
+  .top3 .item {
+    display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px dashed var(--line);
+  }
+  .top3 .item:last-child { border-bottom: none; padding-bottom: 0; }
+  .top3 .item::before {
+    counter-increment: t3; content: counter(t3);
+    flex: none; width: 26px; height: 26px; border-radius: 8px;
+    background: var(--primary-soft); color: var(--primary);
+    font-weight: 700; font-size: 13px; display: grid; place-items: center;
+  }
+  .top3 .item b { display: block; color: var(--text); margin-bottom: 3px; }
+  .top3 .item span { color: var(--text-2); font-size: 13px; }
+
+  footer.doc {
+    text-align: center; color: var(--text-3); font-size: 11.5px; padding: 8px 0 0;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <h1>v0.3.0 实测 bug 清单录入 · 缺陷预防机制分析</h1>
+  <div class="meta">
+    <span>日期 <code>2026-10-17</code></span>
+    <span>分支 <code>fix/v030-bugfix</code></span>
+    <span>实测对象 <code>build/darwin-arm64/Trap.app</code></span>
+    <span>清单 <code>docs/testlog/2026-10-17-v030-实测bug清单.md</code></span>
+  </div>
+  <div class="badges">
+    <span class="badge ok">13 条已录入</span>
+    <span class="badge p1">P1 高 × 4</span>
+    <span class="badge p2">P2 中 × 5</span>
+    <span class="badge p3">P3 低 × 4</span>
+    <span class="badge">已交另一 agent 修复</span>
+  </div>
+</header>
+
+<section class="card">
+  <h2><span class="bar"></span>一、本单元做了什么</h2>
+  <ul>
+    <li>按用户实测反馈，将 <strong>13 条 bug</strong> 逐条录入 <span class="path">docs/testlog/2026-10-17-v030-实测bug清单.md</span>（现象 / 复现步骤 / 期望 / 严重度 / 状态五列），编号连续 1–13。</li>
+    <li>每条 bug 均做<strong>只读代码定位</strong>（未改任何业务代码，修复由另一 agent 负责），把相关文件路径与行号写进结论，便于接手。</li>
+    <li>用户提出核心诉求后，输出<strong>缺陷预防机制分析</strong>：为什么这些 bug 会漏过开发期检查、如何在后续开发中减少同类问题。</li>
+    <li>本 HTML 即该分析的独立存档版本，便于分享与后续查阅。</li>
+  </ul>
+  <div class="lead">
+    <strong>本单元结论先行：</strong>13 条 bug 中 <strong>7 条是布局/交互细节</strong>，根因不是「实现写错」，而是
+    <strong>规格颗粒度没到可判定的程度</strong>——UI 基线只描述了「有什么」，没定义「在哪里、对齐谁、空态是什么」。
+    真正的解法是让规格可执行、让 E2E 能判定布局，而不是靠 agent 更仔细。
+  </div>
+</section>
+
+<section class="card">
+  <h2><span class="bar"></span>二、13 条 bug 的根因分类</h2>
+  <table>
+    <thead>
+      <tr><th>类别</th><th>含义</th><th>bug 编号</th><th>为什么会漏</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="cls cls-a">A 纯逻辑</span></td>
+        <td>可单测，但没写测试</td>
+        <td>1、2、13</td>
+        <td><span class="path">web/src/api/todo-parse.ts</span> 是纯函数，天然可表驱动测试；但 <span class="path">web/src</span> 下测试文件数为 <strong>0</strong>，<span class="path">package.json</span> 连 test 脚本都没有</td>
+      </tr>
+      <tr>
+        <td><span class="cls cls-b">B 规格未写清</span></td>
+        <td>布局/交互细节无判定标准</td>
+        <td>3、4、6、7、9、11</td>
+        <td><span class="path">docs/design/ui-baseline.md</span> 只写了「分类圆点单选 + 取消/保存」，未定义在第几行、谁靠右、空提示对齐谁</td>
+      </tr>
+      <tr>
+        <td><span class="cls cls-c">C 状态设计缺失</span></td>
+        <td>架构层决策，无机制保证</td>
+        <td>5、8、10、12</td>
+        <td>涉及组件卸载、跨视图持久化、默认值语义，本来就没有任何一层会检查</td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="why" style="color:var(--text-3);font-size:12.5px;margin:0;">
+    B 类占 7 条、超过半数 —— 这是后续所有机制设计的出发点。
+  </p>
+</section>
+
+<section class="card">
+  <h2><span class="bar"></span>三、五个缺陷预防机制（按性价比排序）</h2>
+
+  <div class="mech">
+    <div class="mech-head">
+      <span class="mech-no">1</span>
+      <span class="mech-title">E2E 从「数据链路」扩成「数据 + 交互 + 布局」三层</span>
+      <span class="mech-tag">覆盖 A 类全部 + C 类部分</span>
+      <span class="mech-tag">零新依赖</span>
+    </div>
+    <p><strong>现状证据：</strong><span class="path">e2e/m0_e2e.go</span>（1347 行）断言口径是数据库（<span class="path">m0_e2e.go:883</span> 断言 due_date、<span class="path">:899</span> 断言落库），DOM 层只用 <code>waitFor</code> 等元素出现。分类单选 <code>grep</code> 命中 <strong>0</strong>，<code>getBoundingClientRect / getComputedStyle</code> 命中 <strong>0</strong>。</p>
+    <p class="why">结果：数据对了但 UI 错了，测试全绿。bug 3、4、6、7、9、12 全部能在这个口径下通过。</p>
+    <p><strong>改法：</strong>① 每个视图每个可点元素 E2E 必须真点一次并断言效果（分类单选点完断言 <code>aria-checked === 'true'</code>）；② 用 <code>getBoundingClientRect()</code> 断言相对关系；③ 加文本保真断言（bug 5 那类「保存后丢了」用全等比较）。</p>
+  </div>
+
+  <div class="mech">
+    <div class="mech-head">
+      <span class="mech-no">2</span>
+      <span class="mech-title">规格文档补「判定条件」列，把「我以为」变成「可对答案」</span>
+      <span class="mech-tag">根治 B 类 7 条</span>
+    </div>
+    <p><strong>现状：</strong>ui-baseline 是描述式写法（「分类圆点单选 + 取消/保存」）。建议每个组件补三项，写到能被测试直接引用：<strong>位置关系</strong>（和谁同一行 / 靠哪边 / 左对齐到谁）、<strong>空态</strong>（无数据显什么、对齐谁）、<strong>状态映射</strong>（展开态 → 箭头朝右，收起态 → 箭头朝左）。</p>
+    <p class="why">配套：规格应带 <code>web/src/style.css:xxxx</code> 锚点，改样式时能立刻知道动了哪条规格。你和 agent 对同一句话理解不同，但一张图就懂——所以要把图变成可执行的判定。</p>
+  </div>
+
+  <div class="mech">
+    <div class="mech-head">
+      <span class="mech-no">3</span>
+      <span class="mech-title">修复 → 回归接进自动检查，不靠人记得</span>
+      <span class="mech-tag">让 AGENTS.md §5 真正被执行</span>
+    </div>
+    <p><strong>现状：</strong>没有 test 脚本、E2E 靠手动 <code>npm run test:e2e</code>，AGENTS.md §8 检查单靠自觉打勾。§5 已写「修 bug 必须先写复现测试」，但 13 条 bug 说明它没被执行。</p>
+    <p><strong>改法：</strong>CI / pre-commit 跑 <code>typecheck + go test ./... + npm run test:e2e</code> 三关；修复流程加硬动作——<strong>先在清单里写清「复现测试路径」列，再动代码</strong>，写不出来说明还没理解 bug，不许修。</p>
+  </div>
+
+  <div class="mech">
+    <div class="mech-head">
+      <span class="mech-no">4</span>
+      <span class="mech-title">建「状态与生命周期」通用约定</span>
+      <span class="mech-tag">治 C 类，防在每个新视图上重复犯错</span>
+    </div>
+    <p>C 类 4 条本质是三个反复出现的问题：</p>
+    <ul style="margin-bottom:6px;">
+      <li><strong>视图切换 = 组件卸载</strong>（<span class="path">web/src/App.tsx:77-82</span> 条件渲染）→ 输入态全丢。约定：所有用户输入态提升到 store 或 sessionStorage，切视图不丢。</li>
+      <li><strong>默认值污染数据</strong>（<span class="path">web/src/panels/views/TodoView.tsx:514</span> 的 <code>todo.category || 'work'</code>）→ bug 10。约定：未分类是显式状态 <code>''</code>，任何地方不得用 falsy 兜底成有值。</li>
+      <li><strong>保存字段口径</strong>（bug 5）→ 约定：编辑保存必须全量读回校验，title 不允许截断/重写。</li>
+    </ul>
+  </div>
+
+  <div class="mech">
+    <div class="mech-head">
+      <span class="mech-no">5</span>
+      <span class="mech-title">提交前拿规格逐条对，而不是「再看一眼」</span>
+      <span class="mech-tag">补目检轮次的漏</span>
+    </div>
+    <p><strong>证据：</strong>v0.3.0 开发期有 12 笔 <code>fix(目检)</code> 提交（<span class="path">git log</span> <code>00967e4</code>–<code>3e3375d</code>），全是布局微调——当时靠「截图 → 看 → 改 → 再看」迭代，没有一层自动检查能替代眼睛。</p>
+    <p class="why">现在 13 条里 7 条布局问题，说明目检轮次也漏了。功能完成后按 ui-baseline §5.x <strong>逐条对</strong>（手里拿着规格文档），比凭印象看有效得多，因为「再看一眼」没有判定标准。</p>
+  </div>
+</section>
+
+<section class="card">
+  <h2><span class="bar"></span>四、如果只做三件事</h2>
+  <div class="top3">
+    <div class="item">
+      <div>
+        <b>E2E 加布局/交互断言</b>
+        <span><code>getBoundingClientRect</code> 相对关系 + 可点元素全覆盖。覆盖 A + C 类，零新依赖，当天可落地。</span>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <b>ui-baseline 每个组件补「位置关系 / 空态 / 状态映射」</b>
+        <span>根治 B 类——这是 7 条 bug 的源头，也是投入产出比最高的一项。</span>
+      </div>
+    </div>
+    <div class="item">
+      <div>
+        <b>修 bug 流程加硬门槛：复现测试路径先落盘，再动代码</b>
+        <span>让 AGENTS.md §5 从纸面要求变成流程闸门。</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="card">
+  <h2><span class="bar"></span>四+、为什么这样做（含被否决的备选）</h2>
+  <ul>
+    <li><strong>把 bug 转成 E2E 断言，而不是转成文档说明：</strong>文档说明会被跳过，断言不会。13 条的「期望」列本身就是可断言的（如第 3 条「同一行 + 靠右 + 在按钮左侧」），修完搬进 E2E，该 bug 永久消失。</li>
+    <li><strong>先改规格文档，而不是先加更多测试：</strong>测试需要断言什么，取决于规格定义了什么。规格不补，测试只能把当前的模糊理解固化成代码，反而锁死错误。</li>
+    <li><strong>被否决：要求 agent「更仔细地目检」。</strong>没有判定标准的仔细不可复现，也无法在 CI 里验证；且已证明 12 轮目检提交仍漏了 7 条布局问题。</li>
+    <li><strong>被否决：为前端引入大型测试框架（如 Playwright）。</strong>现有 <span class="path">e2e/m0_e2e.go</span> 已能在真实 WKWebView 里驱动页面与 typed IPC，扩断言即可；引入新框架违反「未经确认不引入第三方依赖」。</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2><span class="bar"></span>五、验证结果</h2>
+  <ul>
+    <li>清单文件 <span class="path">docs/testlog/2026-10-17-v030-实测bug清单.md</span>：13 行表格数据完整，编号连续，五列齐备。</li>
+    <li>分类统计核对：P1×4（bug 1、2、5、12）、P2×5（bug 3、4、8、10、13）、P3×4（bug 6、7、9、11），与表头徽章一致。</li>
+    <li>每条定位均通过 <code>grep</code> / <code>read</code> 只读验证，未执行业务代码改动。</li>
+    <li>修复进展：用户已将该清单交给另一 agent 处理，本单元不介入修复，避免冲突。</li>
+  </ul>
+</section>
+
+<section class="card">
+  <h2><span class="bar"></span>六、遗留问题 / TODO</h2>
+  <ul>
+    <li><strong>待用户回答的验证问题</strong>（已提出，未答）：bug 5 的三个验证问题（消失的是时间值本身还是连同标签一起没；该事项是否当初用时间解析创建；刷新后是否恢复）；bug 10 的「进编辑态看工作圆点是否预选中」；bug 12 的「点下去圆点有没有变实心蓝 / 是否加上 is-active class」。</li>
+    <li><strong>待用户决策</strong>：bug 7 收起态是否留常驻展开入口；bug 8 输入框高度是否跨重启持久化（建议高度持久化、草稿仅会话内）。</li>
+    <li><strong>机制落地需等修复完成后动</strong>：机制 3（CI / pre-commit）、机制 4（store 约定）、机制 5（流程要求）都会触到另一 agent 的修复范围，建议清单状态更新后再实施。</li>
+    <li>13 条转 E2E 断言清单尚未生成（用户未确认是否需要）。</li>
+  </ul>
+</section>
+
+<footer class="doc">Trap · 个人工作台 — docs/devlog 存档 · 2026-10-17</footer>
+
+</div>
+</body>
+</html>

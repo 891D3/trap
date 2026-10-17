@@ -81,6 +81,14 @@ export const IconTrash = ({ size = 16 }: IconProps) =>
     </>
   ));
 
+export const IconRefresh = ({ size = 16 }: IconProps) =>
+  base(size, (
+    <>
+      <path d="M20 11a8 8 0 1 0-2.34 6.34" />
+      <path d="M20 5v6h-6" />
+    </>
+  ));
+
 export const IconCalendar = ({ size = 18 }: IconProps) =>
   base(size, (
     <>

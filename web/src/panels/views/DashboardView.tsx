@@ -2,10 +2,14 @@
 //   KPI 行（4 等宽白卡）→ 左「待办事项卡」（380px）+ 右「今日信息卡」（flex）。
 // 数据全部来自真实服务：TodoService.Stats 聚合 + store 的 todos 列表。
 import { useMemo, useState } from 'react';
-import { IconNote, IconPlus, IconTrash } from '../../components/icons';
+import { IconNote, IconPlus, IconRefresh, IconTrash } from '../../components/icons';
 import { ConfirmDialog } from '../../components/dialogs';
 import { useStore } from '../../state/app-store';
 import type { Todo } from '../../state/app-store';
+import { fetchNews, NEWS_CHANNELS, type NewsChannelKey } from '../../api/news';
+import type { NewsItem } from '../../mygo';
+import { subscribeNewsChanged } from '../../realtime/news-events';
+import { useEffect } from 'react';
 
 /** 分类徽章文案与样式（个人/工作/学习；空 = 未分类不显示徽章）。 */
 const CATEGORY_BADGE: Record<string, string> = {
@@ -25,16 +29,6 @@ function MiniBars(): React.JSX.Element {
       ))}
     </div>
   );
-}
-
-/** 今日信息行的时间列：RFC3339 → HH:mm（本地时区）。 */
-function timeLabel(at: string | null | undefined): string {
-  if (!at) return '—';
-  const d = new Date(at);
-  if (Number.isNaN(d.getTime())) return '—';
-  const hh = String(d.getHours()).padStart(2, '0');
-  const mm = String(d.getMinutes()).padStart(2, '0');
-  return `${hh}:${mm}`;
 }
 
 export function DashboardView(): React.JSX.Element {
@@ -62,6 +56,45 @@ export function DashboardView(): React.JSX.Element {
 
   const todayTodo = stats?.todayTodoCount ?? 0;
   const diff = (stats?.todayTodoCount ?? 0) - (stats?.yesterdayTodoCount ?? 0);
+
+  // ---- 热点资讯标签页（今日信息卡内）----
+  // tab = 'today'（今日信息）/ 渠道 key（weibo…）；多渠道在 NEWS_CHANNELS 扩展。
+  const [infoTab, setInfoTab] = useState<'today' | NewsChannelKey>('today');
+  const [newsItems, setNewsItems] = useState<Record<string, NewsItem[]>>({});
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsError, setNewsError] = useState<string | null>(null);
+
+  const loadNews = async (platform: NewsChannelKey, force = false): Promise<void> => {
+    setNewsLoading(true);
+    setNewsError(null);
+    try {
+      const items = await fetchNews(platform, force);
+      setNewsItems((cur) => ({ ...cur, [platform]: items }));
+    } catch (error: unknown) {
+      setNewsError(error instanceof Error ? error.message : '资讯加载失败');
+    } finally {
+      setNewsLoading(false);
+    }
+  };
+
+  // 切到资讯 tab 时懒加载（无缓存才拉；有缓存直接展示）。
+  useEffect(() => {
+    if (infoTab !== 'today' && !newsItems[infoTab]) void loadNews(infoTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [infoTab]);
+
+  // 后台定时刷新广播：刷新当前渠道列表（静默，不转 loading）。
+  useEffect(
+    () =>
+      subscribeNewsChanged((payload) => {
+        if (payload.platform === infoTab) {
+          void fetchNews(payload.platform as NewsChannelKey).then((items) =>
+            setNewsItems((cur) => ({ ...cur, [payload.platform]: items })),
+          );
+        }
+      }),
+    [infoTab],
+  );
 
   return (
     <div className="dashboard">
@@ -144,11 +177,8 @@ export function DashboardView(): React.JSX.Element {
             />
           </div>
 
-          <div className="filter-tabs">
-            <span className="filter-tab is-active">全部</span>
-            <button className="filter-tab" onClick={() => setView('todo')}>进行中</button>
-            <button className="filter-tab" onClick={() => setView('todo')}>已完成</button>
-          </div>
+          {/* bug #11：去掉「进行中/已完成」假 Tab（点击只是跳转、无筛选作用，用户已裁定移除）；
+              行项末尾保留「查看全部」跳转。 */}
 
           <ul className="dash-todo-list">
             {openTodos.map((todo) => (
@@ -186,30 +216,71 @@ export function DashboardView(): React.JSX.Element {
           </footer>
         </section>
 
-        {/* 今日信息卡 */}
+        {/* 今日信息 + 热点资讯卡（标签页：今日信息/微博…，右侧手动刷新） */}
         <section className="dash-card dash-today" aria-label="今日信息">
           <header className="dash-card-head">
-            <h2 className="dash-card-title">今日信息</h2>
-            <span className="dash-today-date">{todayLabel()}</span>
+            <div className="dash-info-tabs">
+              <button
+                className={`info-tab is-title${infoTab === 'today' ? ' is-active' : ''}`}
+                onClick={() => setInfoTab('today')}
+              >
+                今日信息
+              </button>
+              {NEWS_CHANNELS.map((ch) => (
+                <button
+                  key={ch.key}
+                  className={`info-tab${infoTab === ch.key ? ' is-active' : ''}`}
+                  onClick={() => setInfoTab(ch.key)}
+                >
+                  {ch.label}
+                </button>
+              ))}
+            </div>
+            <div className="dash-head-right">
+              {infoTab !== 'today' && (
+                <button
+                  className="btn-icon"
+                  aria-label="手动刷新资讯"
+                  title="刷新"
+                  disabled={newsLoading}
+                  onClick={() => void loadNews(infoTab, true)}
+                >
+                  <IconRefresh size={14} />
+                </button>
+              )}
+              <span className="dash-today-date">{todayLabel()}</span>
+            </div>
           </header>
 
-          <ul className="today-list">
-            {(stats?.todayAgenda ?? []).map((item) => (
-              <li key={`${item.kind}-${item.refId}`} className="today-item">
-                <span className="today-time">{timeLabel(item.at)}</span>
-                <span className={`today-dot ${dotClass(item)}`} />
-                <span className="today-title">{item.title}</span>
-                <span className={`note-badge ${badgeClass(item)}`}>{badgeText(item)}</span>
-              </li>
-            ))}
-            {(stats?.todayAgenda?.length ?? 0) === 0 && (
-              <li className="dash-empty">今天暂时没有信息</li>
-            )}
-          </ul>
+          {infoTab === 'today' ? (
+            <>
+              {/* 今日信息 tab 仅作标题页：待办内容与侧栏「待办事项」重复，已取消展示。
+                  这里只保留底部项目进行中统计。 */}
+              <div className="today-empty" />
 
-          <footer className="today-foot">
-            <span>项目进行中 {projects.filter((p) => p.openTodos > 0).length} 个</span>
-          </footer>
+              <footer className="today-foot">
+                <span>项目进行中 {projects.filter((p) => p.openTodos > 0).length} 个</span>
+              </footer>
+            </>
+          ) : (
+            <ul className="news-list">
+              {newsLoading && !(newsItems[infoTab]?.length) && <li className="dash-empty">正在获取资讯…</li>}
+              {!newsLoading && newsError && (
+                <li className="dash-empty">{newsError}</li>
+              )}
+              {(newsItems[infoTab] ?? []).map((item, i) => (
+                <li key={`${item.url}-${i}`} className="news-item">
+                  <span className="news-rank">{i + 1}</span>
+                  <a href={item.url} target="_blank" rel="noreferrer" className="news-title">
+                    {item.title}
+                  </a>
+                </li>
+              ))}
+              {!newsLoading && !newsError && (newsItems[infoTab]?.length ?? 0) === 0 && (
+                <li className="dash-empty">暂无资讯</li>
+              )}
+            </ul>
+          )}
         </section>
       </div>
 
@@ -237,20 +308,4 @@ function todayLabel(): string {
   return `${now.getMonth() + 1}月${now.getDate()}日 · ${week[now.getDay()]}`;
 }
 
-type AgendaItem = NonNullable<ReturnType<typeof useStore>['stats']>['todayAgenda'][number];
 
-/** 时间轴状态点：todo-done 绿（下跌绿浅底覆盖已完成的正向语义）、todo 未完成蓝（进行中）、note 灰蓝。 */
-function dotClass(item: AgendaItem): string {
-  if (item.kind === 'note') return 'is-note';
-  return item.status === 'done' ? 'is-done' : 'is-open';
-}
-
-function badgeClass(item: AgendaItem): string {
-  if (item.kind === 'note') return 'badge-note';
-  return item.status === 'done' ? 'badge-done' : 'badge-open';
-}
-
-function badgeText(item: AgendaItem): string {
-  if (item.kind === 'note') return '已记录';
-  return item.status === 'done' ? '已完成' : '待开始';
-}

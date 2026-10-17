@@ -52,7 +52,7 @@ type ProjectDraft = {
 };
 
 export function Sidebar({ view, collapsed, onSelectView, onToggleCollapsed }: SidebarProps) {
-  const { user, todos, projects, addProject, editProject, deleteProject, openProject, projectFilter } = useStore();
+  const { user, todos, projects, addProject, editProject, deleteProject, openProject, projectFilter, appVersion } = useStore();
 
   // 新建按钮的迷你弹层（名称输入 + 色盘），局部 state 足够（契约：收起态不跨会话持久）。
   const [draft, setDraft] = useState<ProjectDraft | null>(null);
@@ -196,6 +196,9 @@ export function Sidebar({ view, collapsed, onSelectView, onToggleCollapsed }: Si
           >
             <IconSettings />
             <span className="side-label">设置</span>
+            {appVersion && !collapsed && (
+              <span className="side-version" title={`Trap v${appVersion}`}>v{appVersion}</span>
+            )}
           </button>
         </div>
       </aside>

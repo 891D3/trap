@@ -210,11 +210,19 @@ input {
   color: var(--text);
 }
 
+/* 侧栏底部设置行右侧的版本号（弱化展示，如 v0.3.1）。 */
+.side-version {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+
 .side-item.is-active {
   /* v3：左侧 3px 主色指示条 + 主色文字；禁止用圆角色块做选中高亮 */
   color: var(--primary);
-  font-weight: 600;
-  position: relative;
+  font-weight: 600;  position: relative;
 }
 
 .nav-ind {
@@ -969,6 +977,8 @@ input {
   margin: 0 0 16px;
   font-size: 14px;
   color: var(--text-2);
+  white-space: pre-line; /* title 可能含换行（多行待办），确认弹窗内保留换行显示 */
+  word-break: break-word;
 }
 
 .dialog-actions {
@@ -1227,6 +1237,97 @@ input {
   font-weight: 700;
 }
 
+/* 今日信息卡标签页（今日信息/微博…）+ 手动刷新 */
+.dash-info-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.info-tab {
+  border: none;
+  background: transparent;
+  padding: 4px 10px;
+  border-radius: var(--radius-item);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-2);
+  cursor: pointer;
+  transition: color var(--dur-med) var(--ease), background var(--dur-med) var(--ease);
+}
+
+.info-tab:hover { color: var(--text); }
+
+.info-tab.is-active {
+  color: var(--primary);
+  background: var(--border-soft);
+}
+
+/* 「今日信息」作为卡片标题（与待办事项标题同款）：无灰底药丸，粗体黑字；
+   选中态仅变主色，不加背景。 */
+.info-tab.is-title {
+  margin-right: 8px;
+  padding-left: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  cursor: default; /* 标题不是可点击控件，去掉手型指针 */
+}
+
+.info-tab.is-title:hover,
+.info-tab.is-title.is-active {
+  color: var(--text);
+  background: transparent;
+}
+
+.dash-head-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 热点资讯列表 */
+.news-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+
+.news-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 0;
+}
+
+.news-rank {
+  width: 18px;
+  flex: none;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.news-item:nth-child(-n+3) .news-rank { color: var(--danger); }
+
+.news-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.news-title:hover { color: var(--primary); }
+
 .dash-count-badge {
   font-size: 12px;
   color: var(--text-2);
@@ -1321,51 +1422,17 @@ input {
   color: var(--text-3);
 }
 
-/* 今日信息时间轴 */
-.today-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
-  min-height: 0;
+/* 今日信息 tab（标题页）：无内容列表，仅居中日期弱化展示 */
+.today-empty {
   flex: 1;
-}
-
-.today-item {
+  min-height: 0;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 7px 0;
+  justify-content: center;
+}
+
+.today-empty .dash-today-date {
   font-size: 13px;
-}
-
-.today-time {
-  width: 44px;
-  flex: none;
-  font-size: 12px;
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-}
-
-.today-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  flex: none;
-  background: var(--slate-300);
-}
-
-.today-dot.is-done { background: var(--down); }
-.today-dot.is-open { background: var(--primary); }
-.today-dot.is-note { background: var(--slate-400); }
-
-.today-title {
-  flex: 1;
-  min-width: 0;
-  color: var(--text-body);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* 分类徽章（个人/工作/学习） */
@@ -1422,6 +1489,12 @@ input {
 }
 
 .aux-month { font-size: 12px; color: var(--text-body); }
+
+/* 复测反馈：今日聚焦日期区的农历副行（农历X月初X） */
+.aux-lunar { font-size: 12px; color: var(--text-3); }
+
+/* 复测反馈：今日信息卡右上角日期与「今日聚焦」的日期字体一致（12px） */
+.dash-today-date { font-size: 12px; color: var(--text-body); }
 .aux-sub { font-size: 11px; color: var(--text-3); }
 
 /* 周日历条 */
@@ -1624,6 +1697,11 @@ input {
   padding: 12px 0;
 }
 
+/* bug #6：待办列表内的空提示与待办行左内边距对齐（16px）。 */
+.todo-list-card .aux-empty {
+  padding: 12px 16px;
+}
+
 /* ============ v3 待办视图（ui-baseline §5.3） ============ */
 
 .todov2 {
@@ -1680,6 +1758,14 @@ input {
   background: var(--surface);
   border-radius: var(--radius-pop);
   box-shadow: var(--shadow-pop);
+}
+
+/* bug #2：光标定位模式（is-caret）—— left/top 由 ProjectPopover 镜像法算出，
+   不再用固定 top/left；translateY 让浮层出现在光标行下方而不遮挡当前行。 */
+.project-pop.is-caret {
+  top: 0; /* 被 inline style 覆盖 */
+  left: 0;
+  transform: translateY(4px);
 }
 
 .project-pop-title {
@@ -1800,6 +1886,25 @@ input {
 }
 
 .list-tabs { padding: 0 16px; }
+
+/* bug #9：Tab 行与筛选 chip 同一行。 */
+.list-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  flex-wrap: wrap;
+}
+
+.list-tabs-row .list-tabs { padding: 0; }
+.list-tabs-row .list-filter-chips { padding: 0; }
+
+/* 复测反馈：分类筛选 chip 的色圈（与辅助区按属性看的空心圈同色系） */
+.list-filter-chips .category-ring {
+  width: 8px;
+  height: 8px;
+  border-width: 2px;
+}
 
 .tab-count {
   color: var(--text-3);
@@ -1926,6 +2031,12 @@ input {
   background: transparent;
   font-size: 13px;
   color: var(--text);
+  /* bug #4：多行自适应标题（textarea），与正文一致的行高与字体。 */
+  resize: none;
+  overflow: hidden;
+  line-height: 1.6;
+  font-family: var(--font-sans);
+  padding: 0;
 }
 
 .todo-edit-input:focus {
@@ -1935,7 +2046,34 @@ input {
 .todo-edit-meta {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+
+/* bug #3：footer 左侧 = chips + 分类单选，右侧 = 取消/保存（同一行）。 */
+.todo-edit-footer .todo-edit-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+/* bug #12：扩大分类单选点击热区（12px 圆点难点中）；
+   恢复选中态实心填充（目检修正②的「永远空心」让用户误判未选中）。 */
+.category-radio {
+  padding: 0 8px;
+}
+
+.category-radio .category-ring {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid var(--slate-300);
+  background: transparent;
+  flex: none;
+}
+
+.category-radio.is-active .category-ring {
+  border-color: var(--primary);
+  background: var(--primary); /* 实心 = 明确的选中视觉反馈 */
 }
 
 .todo-edit-footer,
@@ -2362,16 +2500,8 @@ input {
 
 /* ---- 目检修正②③④（2026-10-15 晚）---- */
 
-/* 分类圆点：永远空心，选中只加深描边 + 文字加粗 */
-.category-radio .category-ring {
-  background: transparent;
-}
-
-.category-radio.is-active .category-ring {
-  background: transparent;
-  border-color: var(--primary);
-  border-width: 2px;
-}
+/* 分类圆点：目检修正②曾改「永远空心」导致 bug #12（选中反馈太弱被误认点不中），
+   bug #12 修复后恢复选中实心（见上方 .category-radio 规则）；文字加粗保留。 */
 
 .category-radio.is-active {
   font-weight: 600;

@@ -18,6 +18,12 @@ const CATEGORY_LABEL: Record<string, string> = {
 const CATEGORY_KEYS = ['personal', 'work', 'study'] as const;
 type Tab = 'all' | 'today' | 'done';
 
+/**
+ * bug #8：快速创建草稿的模块级缓存（React 本地 state 会随视图切换卸载丢失）。
+ * height 记录用户手动拖拽后的内联高度（restore 后再应用回 textarea）。
+ */
+const quickDraftCache: { text: string; height: string | null } = { text: '', height: null };
+
 /** 本地 yyyy-mm-dd（日期分组与月历的日期键）。 */
 function dayKey(d: Date): string {
   const y = d.getFullYear();
@@ -43,11 +49,32 @@ function sortAsc(list: Todo[]): void {
 }
 
 /** 条目右侧时间 HH:mm。 */
+/** 日期部分的完整文案（与新建 chip 同语义）：今天/明天/后天/M/D 周X。 */
+function dueDayLabel(d: Date): string {
+  const now = new Date();
+  const startOfDay = (x: Date): Date => new Date(x.getFullYear(), x.getMonth(), x.getDate());
+  const diff = Math.round((startOfDay(d).getTime() - startOfDay(now).getTime()) / 86400000);
+  if (diff === 0) return '今天';
+  if (diff === 1) return '明天';
+  if (diff === 2) return '后天';
+  const WEEK = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+  return `${d.getMonth() + 1}/${d.getDate()} ${WEEK[d.getDay()] ?? ''}`.trim();
+}
+
 function whenLabel(todo: Todo): string {
   if (!todo.dueDate) return '';
   const d = new Date(todo.dueDate);
   if (Number.isNaN(d.getTime())) return '';
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** 编辑态日期 chip 的完整文案（复测反馈：应与新建 chip 一致，如「今天 14:00」）。 */
+function dueChipLabel(todo: Todo): string {
+  if (!todo.dueDate) return '';
+  const d = new Date(todo.dueDate);
+  if (Number.isNaN(d.getTime())) return '';
+  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  return `${dueDayLabel(d)} ${time}`;
 }
 
 export function TodoView() {
@@ -69,16 +96,23 @@ export function TodoView() {
   } = useStore();
 
   // ---- 快速创建 ----
-  const [draft, setDraft] = useState('');
+  // bug #8：草稿与输入框高度提升到模块级缓存，跨视图切换（组件卸载）保留。
+  const draftInit = quickDraftCache.text;
+  const [draft, setDraft] = useState(draftInit);
   const [category, setCategory] = useState<string>('');  // 默认不选（个人/工作/学习空心圆点）
   const [dueChip, setDueChip] = useState<{ at: Date; label: string } | null>(null);
   const [dueSuppressed, setDueSuppressed] = useState(false); // 手动关闭「识别日期」预览，输入变化时重置
+  // 复测反馈：选中项目后浮层不退出——因选中后光标处 token 变为「#项目名」仍在联想中。
+  // 选中后抑制浮层，输入变化（onChange）时重置恢复联想。
+  const [projectPopSuppressed, setProjectPopSuppressed] = useState(false);
   const [projectPick, setProjectPick] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Todo | null>(null);
   const [saving, setSaving] = useState<'add' | number | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('all');
   const [editingId, setEditingId] = useState<number | null>(null);
+  // bug #1：记录光标位置，`#` 检测只在光标处 token 上触发。
+  const [caret, setCaret] = useState<number | null>(null);
   const quickRef = useRef<HTMLTextAreaElement>(null);
 
   // 输入即解析：时间短语 →（未手动设 chip 时生效）；#词命中项目 → 项目。
@@ -88,7 +122,8 @@ export function TodoView() {
     return { title, due, projectId };
   }, [draft, projects]);
 
-  const query = projectQuery(draft);
+  // bug #1：`#` 联想只在光标所在 token 触发（而非仅文末）。
+  const query = projectQuery(draft, caret ?? undefined);
   const suggestions = useMemo(() => {
     if (query === null) return [];
     const q = query.toLowerCase();
@@ -96,8 +131,31 @@ export function TodoView() {
   }, [query, projects]);
 
   const pickProject = (id: number, name: string): void => {
-    setProjectPick(id);
-    setDraft(draft.replace(/#[^\s#]*$/, `#${name}`));
+    // 用当前光标所在 token 精确替换（而不是全局末尾替换），避免多 token 误伤。
+    // token 范围 = 光标前最近的 `#` 到其后第一个空白/行尾（与 projectQuery 同语义），
+    // 而不是 `#` 到光标——否则光标在 token 后的普通文本上时会把整段吞掉。
+    const at = caret ?? draft.length;
+    const before = draft.slice(0, at);
+    const after = draft.slice(at);
+    const hashAt = before.lastIndexOf('#');
+    if (hashAt !== -1) {
+      const lineEnd = draft.indexOf('\n', hashAt);
+      const tokenEndInFull = (() => {
+        const rest = draft.slice(hashAt + 1);
+        const stop = rest.search(/[\s#]/);
+        if (stop === -1) return hashAt + 1 + rest.length;
+        return hashAt + 1 + stop;
+      })();
+      const tokenEnd = lineEnd !== -1 ? Math.min(tokenEndInFull, lineEnd) : tokenEndInFull;
+      setProjectPick(id);
+      const nextDraft = draft.slice(0, hashAt) + `#${name}` + draft.slice(tokenEnd);
+      setDraft(nextDraft);
+      quickDraftCache.text = nextDraft;
+      setProjectPopSuppressed(true); // 选中后关闭浮层（光标处 token 已是 #项目名，仍会命中联想）
+    } else {
+      setProjectPick(id);
+      setProjectPopSuppressed(true);
+    }
   };
 
   const submit = async (): Promise<void> => {
@@ -116,9 +174,11 @@ export function TodoView() {
         projectId: (projectPick ?? parsed.projectId) ?? undefined,
       });
       setDraft('');
+      quickDraftCache.text = '';  // bug #8：提交后同步清空草稿缓存
       setDueChip(null);
       setProjectPick(null);
       setDueSuppressed(false);
+      setCaret(null);
     } catch (error: unknown) {
       setLocalError(toChineseError(error, '待办添加失败，请稍后重试'));
     } finally {
@@ -235,6 +295,19 @@ export function TodoView() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
+  // bug #8：恢复/保存输入框拖拽高度（height 是纯 DOM 属性，不随 state 持久）。
+  useEffect(() => {
+    const el = quickRef.current;
+    if (!el) return;
+    if (quickDraftCache.height) el.style.height = quickDraftCache.height;
+    const onUp = (): void => {
+      const h = el.style.height;
+      if (h) quickDraftCache.height = h;
+    };
+    el.addEventListener('mouseup', onUp);
+    return () => el.removeEventListener('mouseup', onUp);
+  }, []);
+
   const filteredProject = projectFilter !== null ? projects.find((p) => p.id === projectFilter) : null;
   const hasFilterChips = filteredProject != null || auxDateFilter !== null || auxCategoryFilter !== '';
   const visibleError = localError ?? todosError;
@@ -259,7 +332,14 @@ export function TodoView() {
             aria-label="快速创建"
             value={draft}
             disabled={todosLoading || saving !== null}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              setCaret(e.target.selectionStart);
+              setProjectPopSuppressed(false); // 输入变化恢复项目联想（选中后曾抑制）
+              quickDraftCache.text = e.target.value;  // bug #8：草稿实时落缓存
+            }}
+            onClick={(e) => setCaret(e.currentTarget.selectionStart)}
+            onKeyUp={(e) => setCaret(e.currentTarget.selectionStart)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
                 e.preventDefault();
@@ -268,18 +348,14 @@ export function TodoView() {
             }}
           />
 
-          {query !== null && (
-            <div className="project-pop">
-              <div className="project-pop-title">选择项目</div>
-              {suggestions.map((p) => (
-                <button key={p.id} className="project-pop-item" onClick={() => pickProject(p.id, p.name)}>
-                  <span className={`side-dot proj-${p.color}`} />
-                  <span className="project-pop-name">#{p.name}</span>
-                  <span className="project-pop-count">{p.openTodos} 项待办</span>
-                </button>
-              ))}
-              {suggestions.length === 0 && <div className="aux-empty">无匹配项目</div>}
-            </div>
+          {query !== null && !projectPopSuppressed && (
+            <ProjectPopover
+              anchor={quickRef.current}
+              text={draft}
+              caret={caret ?? draft.length}
+              suggestions={suggestions}
+              onPick={pickProject}
+            />
           )}
         </div>
 
@@ -338,6 +414,8 @@ export function TodoView() {
 
       {/* ---- 待办列表卡 ---- */}
       <section className="dash-card todo-list-card">
+      {/* bug #9：筛选 chip 与 Tab 同一行（Tab 右侧），不再换行堆叠。 */}
+      <div className="list-tabs-row">
         <div className="filter-tabs list-tabs">
           <button className={`filter-tab${tab === 'all' ? ' is-active' : ''}`} onClick={() => setTab('all')}>
             全部 <span className="tab-count">{visible.length}</span>
@@ -368,12 +446,15 @@ export function TodoView() {
             )}
             {auxCategoryFilter !== '' && (
               <span className="chip">
+                {/* 复测反馈：分类筛选 chip 也带分类色圆点（与项目 chip 的色点一致） */}
+                <span className={`category-ring ring-${auxCategoryFilter}`} />
                 {CATEGORY_LABEL[auxCategoryFilter] ?? auxCategoryFilter}
                 <button aria-label="清除分类过滤" onClick={() => setAuxCategoryFilter('')}><IconX size={10} /></button>
               </span>
             )}
           </div>
         )}
+      </div>
 
         {todosLoading ? (
           <div className="aux-empty">正在读取待办…</div>
@@ -510,8 +591,18 @@ function TodoEditRow(props: {
   const { todo, setEditingId, saving, setSaving, setLocalError } = props;
   const { projects, editTodo } = useStore();
   const [title, setTitle] = useState(todo.title);
-  const [category, setCategory] = useState<string>(todo.category || 'work');
+  // bug #10：去掉 || 'work' 兑底——存量未分类保持未分类，不再新增脏数据。
+  const [category, setCategory] = useState<string>(todo.category);
   const [projectPick, setProjectPick] = useState<number | null>(todo.projectId);
+  const editRef = useRef<HTMLTextAreaElement>(null);
+
+  // bug #4：标题改用多行 textarea，按内容自适应高度（初始即撑满）。
+  useEffect(() => {
+    const el = editRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [title]);
 
   const save = async (): Promise<void> => {
     const trimmed = title.trim();
@@ -541,38 +632,41 @@ function TodoEditRow(props: {
   return (
     <li className="todo-item is-editing">
       <div className="todo-edit-top">
-        <input
+        <textarea
+          ref={editRef}
           className="todo-edit-input"
+          rows={1}
           value={title}
           autoFocus
           disabled={saving !== null}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') void save();
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              void save();
+            }
             if (e.key === 'Escape') setEditingId(null);
           }}
         />
       </div>
-      <div className="todo-edit-meta">
-        <span className="chip">
-          <IconCalendar size={12} />
-          {whenLabel(todo) || '未安排'}
-        </span>
-        {(todo.dueDate !== null || project != null) && (
-          <>
-            {project != null && (
-              <span className="chip">
-                <span className={`side-dot proj-${project.color}`} />
-                #{project.name}
-                <button aria-label="移除项目" onClick={() => setProjectPick(null)}>
-                  <IconX size={10} />
-                </button>
-              </span>
-            )}
-          </>
-        )}
-      </div>
+      {/* bug #3：底部一行 = 左侧日期/项目 chip，右侧分类单选紧挨取消/保存（用户复测反馈：
+          单选应靠右与按钮同组，而非跟在 chip 后）。 */}
       <div className="todo-edit-footer">
+        <div className="todo-edit-meta">
+          <span className="chip">
+            <IconCalendar size={12} />
+            {dueChipLabel(todo) || '未安排'}
+          </span>
+          {project != null && (
+            <span className="chip">
+              <span className={`side-dot proj-${project.color}`} />
+              #{project.name}
+              <button aria-label="移除项目" onClick={() => setProjectPick(null)}>
+                <IconX size={10} />
+              </button>
+            </span>
+          )}
+        </div>
         <div className="category-radios" role="radiogroup" aria-label="分类">
           {CATEGORY_KEYS.map((key) => (
             <button
@@ -593,5 +687,63 @@ function TodoEditRow(props: {
         </div>
       </div>
     </li>
+  );
+}
+
+/**
+ * 项目联想浮层（bug #2 修复）：用「镜像 div」测量光标在 textarea 内的坐标，
+ * 把浮层定位到光标附近，而不是固定在输入框下方。
+ * 原理：复制 textarea 的字体/行高/宽度/内边距到隐藏 div，插入光标前文本 +
+ * 定位 span，读取 span 偏移即光标坐标。
+ */
+function ProjectPopover(props: {
+  anchor: HTMLTextAreaElement | null;
+  text: string;
+  caret: number;
+  suggestions: Array<{ id: number; name: string; color: string; openTodos: number }>;
+  onPick: (id: number, name: string) => void;
+}): React.JSX.Element | null {
+  const { anchor, text, caret, suggestions, onPick } = props;
+
+  // 每次渲染计算一次光标坐标（输入量小，直接同步测量即可）。
+  let left = 0;
+  let top = 0;
+  if (anchor) {
+    const mirror = document.createElement('div');
+    const style = window.getComputedStyle(anchor);
+    for (const prop of [
+      'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
+      'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
+      'borderWidth', 'boxSizing', 'whiteSpace', 'wordWrap', 'textTransform',
+    ] as const) {
+      mirror.style[prop] = style[prop];
+    }
+    mirror.style.position = 'absolute';
+    mirror.style.visibility = 'hidden';
+    mirror.style.width = `${anchor.clientWidth}px`;
+    mirror.style.whiteSpace = 'pre-wrap';
+    mirror.style.wordWrap = 'break-word';
+    mirror.textContent = text.slice(0, caret);
+    const marker = document.createElement('span');
+    marker.textContent = '\u200b'; // 零宽字符锚定光标点
+    mirror.appendChild(marker);
+    document.body.appendChild(mirror);
+    left = marker.offsetLeft;
+    top = marker.offsetTop;
+    document.body.removeChild(mirror);
+  }
+
+  return (
+    <div className="project-pop is-caret" style={{ left, top }}>
+      <div className="project-pop-title">选择项目</div>
+      {suggestions.map((p) => (
+        <button key={p.id} className="project-pop-item" onClick={() => onPick(p.id, p.name)}>
+          <span className={`side-dot proj-${p.color}`} />
+          <span className="project-pop-name">#{p.name}</span>
+          <span className="project-pop-count">{p.openTodos} 项待办</span>
+        </button>
+      ))}
+      {suggestions.length === 0 && <div className="aux-empty">无匹配项目</div>}
+    </div>
   );
 }

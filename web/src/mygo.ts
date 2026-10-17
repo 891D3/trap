@@ -39,6 +39,20 @@ export interface InitializeInput {
   theme?: string;
 }
 
+/** NewsChangedPayload 新闻刷新事件载荷。 */
+export interface NewsChangedPayload {
+  platform: string;
+  count: number;
+}
+
+/** NewsItem 单条热点（对齐接口字段，仅取前端展示所需）。 */
+export interface NewsItem {
+  title: string;
+  url: string;
+  content?: string;
+  publishTime?: string;
+}
+
 /** Note 是一条信息记录的完整实体。 */
 export interface Note {
   id: number;
@@ -322,6 +336,10 @@ export const AppService = {
   updateProfile(name: string, avatarPath: string): Promise<Settings> {
     return call("AppService.UpdateProfile", name, avatarPath);
   },
+  /** Version 返回应用版本号（前端侧栏底部展示）。 */
+  version(): Promise<string> {
+    return call("AppService.Version");
+  },
 } as const;
 
 /**
@@ -497,6 +515,27 @@ export const QuickLinkService = {
   },
 } as const;
 
+/**
+ * NewsService 提供热点资讯（缓存 + 手动刷新）。
+ *
+ * 生命周期：main Bind 时注册零值；WhenReady 中 StartNewsScheduler 启动
+ * 定时刷新（goroutine 可经 stop 取消，符合 AGENTS.md goroutine 退出约束）。
+ */
+export const NewsService = {
+  /** Fetch 返回指定渠道的热点榜单（优先缓存；force=true 时绕过 TTL 强制拉取）。 */
+  fetch(platform: string, force: boolean): Promise<NewsItem[]> {
+    return call("NewsService.Fetch", platform, force);
+  },
+  /**
+   * StartNewsScheduler 启动定时刷新（启动即拉一次；每 TTL 周期刷新）。
+   * 返回停止函数（WhenReady 中 defer/退出时调用；App 退出即进程退出，简单起见
+   * 由 main 持有）。
+   */
+  startNewsScheduler(): Promise<void> {
+    return call("NewsService.StartNewsScheduler");
+  },
+} as const;
+
 // ---- Events ----
 
 /** Events sent by the Go side. Subscribe with `events.name.on(listener)`. */
@@ -506,6 +545,8 @@ export const events = {
    * Go 侧在每次设置成功写入后 Broadcast；前端据此刷新侧栏姓名等展示。
    */
   settingsChanged: event<Settings>("settings.changed"),
+  /** NewsChanged 是新闻更新事件：定时/手动刷新成功后广播，前端刷新列表。 */
+  newsChanged: event<NewsChangedPayload>("news.changed"),
   /** NoteChanged 在记录成功写入、归档或删除后广播。 */
   noteChanged: event<NoteChangedPayload>("note.changed"),
   /** ProjectChanged 在项目成功写入后广播到所有 WebView。 */

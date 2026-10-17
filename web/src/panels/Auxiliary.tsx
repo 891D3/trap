@@ -43,7 +43,9 @@ export function Auxiliary({ view, collapsed = false, onCollapse }: AuxiliaryProp
   );
 }
 
-import { IconPanelLeftClose } from '../components/icons';
+import { IconPanelLeftOpen } from '../components/icons';
+// bug #7：展开态用朝右箭头（点击收起，面板将向右折叠消失），收起后由顶栏
+// 的 IconPanelLeftOpen 承担展开（语义与右侧侧栏同位置按钮一致）。
 function AuxCollapseIcon(): React.JSX.Element {
-  return <IconPanelLeftClose />;
+  return <IconPanelLeftOpen />;
 }

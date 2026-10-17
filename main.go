@@ -24,7 +24,8 @@ func main() {
 	notes := &service.NoteService{}
 	projects := &service.ProjectService{} // v2.0：项目实体（待办关联/侧栏列表）
 	links := &service.QuickLinkService{}  // v2.0 R6：快捷入口（CRUD/分组/打开）
-	mygo.Bind(app, todos, notes, projects, links)
+	news := &service.NewsService{}        // 热点资讯（微博等渠道，定时+手动刷新）
+	mygo.Bind(app, todos, notes, projects, links, news)
 
 	mygo.App.WhenReady(func() {
 		// 数据目录策略（Onboarding D1）：统一 ~/.trap；存量 userData 自动迁移
@@ -50,6 +51,11 @@ func main() {
 		service.AttachProjectStore(projects, db)
 		service.AttachQuickLinkStore(links, db)
 		service.AttachTodoPeer(notes, todos)
+		// 热点资讯定时刷新（启动即预热一次，之后每 10 分钟后台拉取；
+		// goroutine 用可取消 ctx，符合 AGENTS.md goroutine 退出约束）。
+		newsCtx, newsCancel := context.WithCancel(context.Background())
+		defer newsCancel()
+		news.StartNewsScheduler(newsCtx)
 
 		// M0.5：灵感自动归档清扫（30 天自动归档/90 天清除），启动时点；
 		// 有变动时广播 note.changed，前端刷新灵感流。
