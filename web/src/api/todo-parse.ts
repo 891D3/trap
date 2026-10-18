@@ -64,16 +64,35 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
       weekdayText = dayMatch[0];
     }
   }
-  // 复测反馈：字段值里的日期（如「【活动日期】10月17日（本周六）」）是正文内容，
-  // 不剥正文（否则残留空洞）；裸用法（「明天交报告」）仍剥。
+  // 日期词剥离策略（丢字 bug 的根源在此，两轮修复收敛）:
+  //   a. 字段值里的日期（如「【活动日期】10月17日（本周六）」）是正文内容，不剥
+  //      （否则残留空洞）；裸用法（「明天交报告」）仍剥。
+  //   b. 句中日期词（后面还有正文，如「明天下午，去学校…」）也视为正文保留——
+  //      单剥日期词会把句子打断成「下午，去学校…」这种悬空短语；日期信息
+  //      已由 chip（「明天 06:20」）完整表达。仅当日期词后紧跟时刻短语
+  //      （「明天 15:00 测试解析」「明天6:20交」）或位于句尾/行尾时才剥，
+  //      此时它是「安排前缀」而非叙述正文。
   if (weekdayText) {
-    const beforeDay = text.slice(0, text.indexOf(weekdayText));
-    if (!/[：:】]\s*$/.test(beforeDay)) text = text.replace(weekdayText, ' ');
+    const dayAt = text.indexOf(weekdayText);
+    const beforeDay = text.slice(0, dayAt);
+    const afterDay = text.slice(dayAt + weekdayText.length);
+    // 仅「紧邻」时刻短语才算安排前缀（如「明天 15:00」「明天6:20交」「明天下午3点」）；
+    // 时刻在句子更后面（「明天下午，去学校，从6:20开始」）不算，日期词保留在正文。
+    const followedByTime = /^\s*(?:\d{1,2}(?::\d{1,2}|点)|(?:上午|早上|凌晨|中午|下午|晚上)\s*\d)/.test(afterDay);
+    const atTail = /^\s*$/.test(afterDay) || /^[，,。！？；;、!?\s]/.test(afterDay);
+    const inFieldValue = /[：:】]\s*$/.test(beforeDay);
+    if (!inFieldValue && (followedByTime || atTail)) {
+      text = text.replace(weekdayText, ' ');
+    }
   }
 
   // 2) 时刻：HH:mm / HH点(半)? / 上午|下午|晚上 N点(半)?。
   //    bug #13：不再要求数字前有空白（「下午6点」紧邻也能命中），
   //    并支持上午/下午/晚上的 12 小时制换算（下午6点 → 18:00）。
+  //    bug #16（复测反馈）：日期词与句中时刻都被剥掉时标题会出现语义空洞
+  //    （「明天下午…从6:20开始」→「下午…从开始」）。因此句中时刻只有在位于
+  //    句首/句尾/紧跟日期词时才剥离；位于句子中间（两侧都是正文，如「从
+  //    6:20开始」）时只建 chip、不剥正文——chip 已表达该时间，正文保留原文。
   let hh = 9;
   let mm = 0;
   let timeLabel = '';
@@ -126,7 +145,17 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
           ? `${meridiem}${rawHh}点${timeMatch[5] ? '半' : ''}`
           : `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
         timeConsumed = timeMatch[0];
-        text = text.replace(timeMatch[0], ' ');
+        // 句中时刻只建 chip 不剥正文：命中位置两侧都是正文文字（如「从6:20开始」的
+        // 「从」「开始」）时，剥离会把句子打断成空洞；句首/句尾/紧跟日期词或标点的
+        // 时刻短语（「下午6点」「明天6:20」）是安排意图，仍剥离。
+        const at = text.indexOf(timeMatch[0]);
+        const before = text.slice(0, at);
+        const after = text.slice(at + timeMatch[0].length);
+        const atBoundary =
+          /^\s*$/.test(before) ||
+          /^\s*$/.test(after) ||
+          /(?:明天|今天|后天|大后天|下周|本周|[，,。！？；;、!?]|\s)\s*$/.test(before);
+        if (atBoundary) text = text.replace(timeMatch[0], ' ');
       }
     }
   }
