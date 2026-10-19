@@ -40,7 +40,7 @@ const (
 
 // appVersion 应用版本号：与 mygo.config.ts 的 version 保持一致
 //（发版时两处同步改；前端侧栏底部与设置页展示）。
-const appVersion = "0.3.1"
+const appVersion = "0.3.2"
 
 // AppService 提供应用级基础能力（设置读写、连通性自检）。
 //
