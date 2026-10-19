@@ -70,16 +70,21 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
   //   b. 句中日期词（后面还有正文且非时刻短语，如「明天下午，去学校…」）也视为
   //      正文保留——单剥日期词会把句子打断成「下午，去学校…」这种悬空短语。
   //   c. 仅当日期词是「安排前缀」才剥：其后紧邻时刻短语（「明天 15:00 测试解析」
-  //      「明天下午2点钟，…」）或后接标点/句尾（「明天，去学校」「明天交报告」）；
-  //      剥离时随带消费其后的一个标点，避免残留「，去学校」这种前导标点。
+  //      「明天下午2点钟，…」，含中文数字时刻「明天下午三点钟」）或后接标点/句尾
+  //      （「明天，去学校」「明天交报告」）；剥离时随带消费其后的一个标点，避免
+  //      残留「，去学校」这种前导标点。
   const PUNCT = '，,。！？；;、!?';
+  // 中文数字（用于「三点钟」「十二点半」这类时刻）；单字最多三位（如「二十三」）。
+  const CN_NUM = '[零一二两三四五六七八九十]';
   if (weekdayText) {
     const dayAt = text.indexOf(weekdayText);
     const beforeDay = text.slice(0, dayAt);
     const afterDay = text.slice(dayAt + weekdayText.length);
     // 仅「紧邻」时刻短语才算安排前缀（如「明天 15:00」「明天6:20交」「明天下午3点」）；
     // 时刻在句子更后面（「明天下午，去学校，从6:20开始」）不算，日期词保留在正文。
-    const followedByTime = /^\s*(?:\d{1,2}(?::\d{1,2}|点)|(?:上午|早上|凌晨|中午|下午|晚上)\s*\d)/.test(afterDay);
+    const followedByTime = new RegExp(
+      `^\\s*(?:\\d{1,2}(?::\\d{1,2}|点)|${CN_NUM}{1,3}点|(?:上午|早上|凌晨|中午|下午|晚上)\\s*(?:\\d|${CN_NUM}))`,
+    ).test(afterDay);
     const atTail = /^\s*$/.test(afterDay) || /^[，,。！？；;、!?\s]/.test(afterDay);
     const inFieldValue = /[：:】]\s*$/.test(beforeDay);
     if (!inFieldValue && (followedByTime || atTail)) {
@@ -132,21 +137,30 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
   // 2b) 普通时刻（无标签命中时才看，避免「签到时间：13:30」这类其它字段被误当安排）。
   if (!timeConsumed) {
     // 「钟」是时刻词的一部分（「2点钟」）：不匹配会残留悬空「钟」（丢字 bug 第二轮）。
-    const timeRe = /(上午|早上|凌晨|中午|下午|晚上)?\s*(?:(\d{1,2}):(\d{1,2})|(\d{1,2})点(半)?(钟)?)/;
+    // 中文数字时刻（「三点钟」「十二点半」）：不匹配则 chip 只出日期不出时刻（第三轮）。
+    const timeRe = new RegExp(
+      `(上午|早上|凌晨|中午|下午|晚上)?\\s*(?:(\\d{1,2}):(\\d{1,2})|(\\d{1,2})点(半)?(钟)?|(${CN_NUM}{1,3})点(半)?(钟)?)`,
+    );
     const timeMatch = text.match(timeRe);
     if (timeMatch) {
       timeMatchMeridiem = timeMatch[1] ?? '';
       const meridiem = timeMatchMeridiem;
-      const rawHh = Number(timeMatch[2] ?? timeMatch[4]);
+      // 三个分支：HH:mm（组2/3）、数字 N点（组4/5/6）、中文数字 N点（组7/8/9）。
+      const cnHh = timeMatch[7] ? cnHourToNumber(timeMatch[7]) : null;
+      const rawHh = Number(timeMatch[2] ?? timeMatch[4] ?? cnHh ?? NaN);
+      const halfMark = timeMatch[5] || timeMatch[8]; // 「半」任一分支
+      const cnText = timeMatch[7] ?? ''; // 中文数字原文（chip 标签用）
       let hhNum = rawHh;
-      // 12 小时制换算：下午/晚上 1-11 点 +12；中午/凌晨 12 点分别归 12/0。
+      // 12 小时制换算：下午/晚上 1-11 点 +12；凌晨 12 点归 0。
       if ((meridiem === '下午' || meridiem === '晚上') && rawHh >= 1 && rawHh <= 11) hhNum = rawHh + 12;
       if (meridiem === '凌晨' && rawHh === 12) hhNum = 0;
-      if (hhNum >= 0 && hhNum <= 23) {
+      if (!Number.isNaN(hhNum) && hhNum >= 0 && hhNum <= 23) {
         hh = hhNum;
-        mm = timeMatch[3] ? Number(timeMatch[3]) : timeMatch[5] ? 30 : 0;
+        mm = timeMatch[3] ? Number(timeMatch[3]) : halfMark ? 30 : 0;
         timeLabel = meridiem
-          ? `${meridiem}${rawHh}点${timeMatch[5] ? '半' : ''}`
+          ? cnText
+            ? `${meridiem}${cnText}点${halfMark ? '半' : ''}` // 保留中文数字原貌（「下午三点」）
+            : `${meridiem}${rawHh}点${halfMark ? '半' : ''}`
           : `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
         timeConsumed = timeMatch[0];
         // 句中时刻只建 chip 不剥正文：命中位置两侧都是正文文字（如「从6:20开始」的
@@ -232,6 +246,23 @@ export function projectQuery(raw: string, caret?: number): string | null {
   }
   const found = raw.match(/#([^\s#]*)$/);
   return found ? (found[1] ?? '') : null;
+}
+
+/** 中文数字小时（「三」「十二」「二十三」）→ 0-23，无法解析返回 null。 */
+function cnHourToNumber(s: string): number | null {
+  const D: Record<string, number> = { 零: 0, 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9 };
+  const tenAt = s.indexOf('十');
+  if (tenAt === -1) {
+    const v = D[s];
+    return v === undefined ? null : v;
+  }
+  // 十X=11-19（省略「一」），X十=10/20/30，X十Y=21 等组合。
+  const left = s.slice(0, tenAt);
+  const right = s.slice(tenAt + 1);
+  const lv = left === '' ? 1 : D[left];
+  const rv = right === '' ? 0 : D[right];
+  if (lv === undefined || rv === undefined) return null;
+  return lv * 10 + rv;
 }
 
 /** 受控提交前统一走这里：组合字段→ CreateTodoInput 所需值。 */

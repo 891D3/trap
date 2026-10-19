@@ -1156,7 +1156,35 @@ func runTodoParseRegressionFlow(page *mygo.Page, url string, todos *service.Todo
 		return fmt.Errorf("回归流程: 边界时刻 due_date 断言失败: 期望 %s 实际 %v", clockExpected, clockSaved.DueDate)
 	}
 
-	// 3) 已完成项可编辑：先完成该条目，再切「已完成」Tab 行内编辑。
+	// 3) 中文数字时刻：「明天下午三点钟，需要带上俊羽去医院看感冒」→ 标题留纯任务名、
+	//    chip 识别「明天 下午三点 15:00」（第三轮：中文数字时刻识别）。
+	cnInput := "明天下午三点钟，需要带上俊羽去医院看感冒"
+	if _, err := callSetter(page, cnInput); err != nil {
+		return fmt.Errorf("回归流程: 输入中文数字时刻: %w", err)
+	}
+	if err := pressMetaEnter(page); err != nil {
+		return fmt.Errorf("回归流程: 提交中文数字时刻: %w", err)
+	}
+	cnList, err := todos.List(context.Background(), store.TodoFilter{})
+	if err != nil {
+		return fmt.Errorf("回归流程: 读库: %w", err)
+	}
+	var cnSaved *store.Todo
+	for i := range cnList {
+		if cnList[i].Title == "需要带上俊羽去医院看感冒" {
+			cnSaved = &cnList[i]
+			break
+		}
+	}
+	if cnSaved == nil {
+		return fmt.Errorf("回归流程: 中文数字时刻条目标题不符（titles=%v）", todoTitles(cnList))
+	}
+	cnExpected := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 15, 0, 0, 0, loc).UTC().Format("2006-01-02T15:04:05.000Z")
+	if cnSaved.DueDate == nil || *cnSaved.DueDate != cnExpected {
+		return fmt.Errorf("回归流程: 中文数字时刻 due_date 断言失败: 期望 %s 实际 %v", cnExpected, cnSaved.DueDate)
+	}
+
+	// 4) 已完成项可编辑：先完成该条目，再切「已完成」Tab 行内编辑。
 	if _, err := page.Eval(fmt.Sprintf(`(() => {
 		const btn = document.querySelector('button[aria-label="完成 %s"]');
 		if (!btn) throw new Error('complete button not found');
