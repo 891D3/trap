@@ -556,8 +556,14 @@ function TodoRow(props: {
           <path d="M4 12.5 9.5 18 20 6.5" />
         </svg>
       </button>
-      {/* 点击标题进入行内编辑（复选框/删除不受影响）。 */}
-      <button className="todo-text" onClick={() => setEditingId(todo.id)}>
+      {/* 点击标题进入行内编辑（复选框/删除不受影响）；已完成项不可再编辑
+          （2026-10-19 用户反馈：已完成列表点击只保留删除），仅保留删除按钮。 */}
+      <button
+        className="todo-text"
+        onClick={() => {
+          if (!todo.done) setEditingId(todo.id);
+        }}
+      >
         {todo.title}
       </button>
       {project ? (

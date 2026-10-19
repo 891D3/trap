@@ -152,7 +152,7 @@ func runSettingsWebViewE2E() error {
 						mygo.App.Quit()
 						return
 					}
-					// 复测回归：句中时间丢字 + 已完成项可编辑（用户反馈两项）。
+					// 复测回归：句中时间丢字（多轮）+ 已完成项不可编辑仅可删（用户反馈）。
 					if err := runTodoParseRegressionFlow(window.Page(), url, todoService); err != nil {
 						flowDone <- err
 						mygo.App.Quit()
@@ -1080,8 +1080,9 @@ func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, proj
 //     保存后标题必须保留「明天」「6:20」原文（不再出现「下午，…从开始」空洞）；
 //     另覆盖「明天下午2点钟，需要去学校接他。」——时刻词含「钟」时不残留悬字、
 //     不出现前导标点（第二轮丢字修复）；
-//   - 需求 2：已完成项可编辑——在「已完成」Tab 点击标题进入行内编辑、保存后
-//     标题更新且仍留在已完成列表（done/completed_at 不被清空）。
+//   - 需求 2：已完成项不可再编辑、删除可用——在「已完成」Tab 点击标题不得进入
+//     行内编辑（2026-10-19 用户反馈，取代早前的「可编辑」要求）；删除按钮仍可用、
+//     确认后条目从库中消失。
 func runTodoParseRegressionFlow(page *mygo.Page, url string, todos *service.TodoService) error {
 	if err := reloadToTodo(page, url); err != nil {
 		return fmt.Errorf("回归流程: 重载待办页: %w", err)
@@ -1184,7 +1185,8 @@ func runTodoParseRegressionFlow(page *mygo.Page, url string, todos *service.Todo
 		return fmt.Errorf("回归流程: 中文数字时刻 due_date 断言失败: 期望 %s 实际 %v", cnExpected, cnSaved.DueDate)
 	}
 
-	// 4) 已完成项可编辑：先完成该条目，再切「已完成」Tab 行内编辑。
+	// 4) 已完成项不可再编辑 + 删除可用（2026-10-19 用户反馈，取代之前的「可编辑」）：
+	//    完成该条目，切「已完成」Tab，点击标题不得进入行内编辑；删除仍可用。
 	if _, err := page.Eval(fmt.Sprintf(`(() => {
 		const btn = document.querySelector('button[aria-label="完成 %s"]');
 		if (!btn) throw new Error('complete button not found');
@@ -1204,7 +1206,7 @@ func runTodoParseRegressionFlow(page *mygo.Page, url string, todos *service.Todo
 	if err := waitFor(page, fmt.Sprintf(`[...document.querySelectorAll('.todo-item.is-done .todo-text')].some((item) => item.textContent?.includes(%q))`, "晚自习"), 8*time.Second); err != nil {
 		return fmt.Errorf("回归流程: 已完成列表未出现目标条目: %w", err)
 	}
-	// 点击标题进入行内编辑（已完成项此前不可编辑）。
+	// 点击标题：已完成项必须不进入行内编辑（不可再编辑）。
 	if _, err := page.Eval(fmt.Sprintf(`(() => {
 		const cell = [...document.querySelectorAll('.todo-item.is-done .todo-text')].find((item) => item.textContent?.includes(%q));
 		if (!cell) throw new Error('done row text not found');
@@ -1213,52 +1215,45 @@ func runTodoParseRegressionFlow(page *mygo.Page, url string, todos *service.Todo
 	})()`, "晚自习")); err != nil {
 		return fmt.Errorf("回归流程: 点击已完成标题: %w", err)
 	}
-	if err := waitFor(page, `document.querySelector('.todo-item.is-editing .todo-edit-input') !== null`, 8*time.Second); err != nil {
-		return fmt.Errorf("回归流程: 已完成项未进入行内编辑")
-	}
-	newTitle := "明天下午去学校参加晚自习（已改）"
-	if _, err := page.Eval(fmt.Sprintf(`(() => {
-		const input = document.querySelector('.todo-edit-input');
-		if (!input) throw new Error('edit input not found');
-		const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement : HTMLInputElement;
-		const setter = Object.getOwnPropertyDescriptor(proto.prototype, 'value')?.set;
-		setter.call(input, %q);
-		input.dispatchEvent(new Event('input', { bubbles: true }));
+	time.Sleep(1500 * time.Millisecond) // 给误入编辑态留出反应时间
+	if _, err := page.Eval(`(() => {
+		if (document.querySelector('.todo-item.is-editing .todo-edit-input') !== null) {
+			throw new Error('done item entered editing mode');
+		}
 		return true;
-	})()`, newTitle)); err != nil {
-		return fmt.Errorf("回归流程: 改写已完成标题: %w", err)
+	})()`); err != nil {
+		return fmt.Errorf("回归流程: 已完成项不应可编辑: %w", err)
+	}
+
+	// 删除仍可用：点击删除 → 确认弹窗 → 条目从库中消失。
+	if _, err := page.Eval(fmt.Sprintf(`(() => {
+		const btn = document.querySelector('button[aria-label="删除 %s"]');
+		if (!btn) throw new Error('done row delete button not found');
+		btn.click();
+		return true;
+	})()`, saved.Title)); err != nil {
+		return fmt.Errorf("回归流程: 点击已完成删除: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('[role="dialog"]')?.textContent?.includes('确定删除') === true`, 5*time.Second); err != nil {
+		return fmt.Errorf("回归流程: 已完成删除确认弹窗未出现: %w", err)
 	}
 	if _, err := page.Eval(`(() => {
-		const btn = [...document.querySelectorAll('.todo-item.is-editing button')].find((item) => item.textContent?.trim() === '保存');
-		if (!btn) throw new Error('save button not found');
+		const btn = [...document.querySelectorAll('[role="dialog"] button')].find((item) => item.textContent?.trim() === '删除');
+		if (!btn) throw new Error('confirm delete button not found');
 		btn.click();
 		return true;
 	})()`); err != nil {
-		return fmt.Errorf("回归流程: 保存已完成编辑: %w", err)
+		return fmt.Errorf("回归流程: 确认删除已完成项: %w", err)
 	}
-	if err := waitFor(page, fmt.Sprintf(`[...document.querySelectorAll('.todo-item.is-done .todo-text')].some((item) => item.textContent?.includes(%q))`, newTitle), 8*time.Second); err != nil {
-		return fmt.Errorf("回归流程: 已完成编辑未生效: %w", err)
-	}
-	// 断言 3：保存后仍是已完成（done/completed_at 未被清空）。
+	// 断言 3：删除后条目从库中消失。
 	final, err := todos.List(context.Background(), store.TodoFilter{})
 	if err != nil {
 		return fmt.Errorf("回归流程: 读回列表: %w", err)
 	}
-	var after *store.Todo
 	for i := range final {
 		if final[i].ID == saved.ID {
-			after = &final[i]
-			break
+			return fmt.Errorf("回归流程: 已完成项删除后仍存在（id=%d）", saved.ID)
 		}
-	}
-	if after == nil {
-		return fmt.Errorf("回归流程: 编辑后条目消失（titles=%v）", todoTitles(final))
-	}
-	if !after.Done || after.CompletedAt == nil {
-		return fmt.Errorf("回归流程: 编辑已完成项后完成状态被清掉: done=%v completedAt=%v", after.Done, after.CompletedAt)
-	}
-	if after.Title != newTitle {
-		return fmt.Errorf("回归流程: 标题未落库: 期望 %q 实际 %q", newTitle, after.Title)
 	}
 	return nil
 }
