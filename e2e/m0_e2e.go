@@ -152,6 +152,12 @@ func runSettingsWebViewE2E() error {
 						mygo.App.Quit()
 						return
 					}
+					// 复测回归：句中时间丢字（多轮）+ 已完成项不可编辑仅可删（用户反馈）。
+					if err := runTodoParseRegressionFlow(window.Page(), url, todoService); err != nil {
+						flowDone <- err
+						mygo.App.Quit()
+						return
+					}
 					if err := runSparkFlow(window.Page(), url, noteService, todoService); err != nil {
 						flowDone <- err
 						mygo.App.Quit()
@@ -1065,6 +1071,189 @@ func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, proj
 	}
 	if err := waitFor(page, `document.querySelector('.list-filter-chips') === null || document.querySelector('.list-filter-chips')?.querySelector('[aria-label="清除日期过滤"]') === null`, 5*time.Second); err != nil {
 		return fmt.Errorf("v2 流程: 日期过滤未清除: %w", err)
+	}
+	return nil
+}
+
+// runTodoParseRegressionFlow 覆盖两项用户反馈修复（复测回归）：
+//   - 需求 1：句中时间不再丢字——「明天下午，去学校，从6:20开始参加班级的晚自习」
+//     保存后标题必须保留「明天」「6:20」原文（不再出现「下午，…从开始」空洞）；
+//     另覆盖「明天下午2点钟，需要去学校接他。」——时刻词含「钟」时不残留悬字、
+//     不出现前导标点（第二轮丢字修复）；
+//   - 需求 2：已完成项不可再编辑、删除可用——在「已完成」Tab 点击标题不得进入
+//     行内编辑（2026-10-19 用户反馈，取代早前的「可编辑」要求）；删除按钮仍可用、
+//     确认后条目从库中消失。
+func runTodoParseRegressionFlow(page *mygo.Page, url string, todos *service.TodoService) error {
+	if err := reloadToTodo(page, url); err != nil {
+		return fmt.Errorf("回归流程: 重载待办页: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('.todo-input')?.disabled === false`, 10*time.Second); err != nil {
+		return fmt.Errorf("回归流程: 待办页未加载: %w", err)
+	}
+
+	// 1) 句中时刻丢字：日期词 + 句中时刻同时被剥会导致标题出现语义空洞。
+	//    用户原文：「明天下午，去学校，从6:20开始参加班级的晚自习」。
+	rawInput := "明天下午，去学校，从6:20开始参加班级的晚自习"
+	if _, err := callSetter(page, rawInput); err != nil {
+		return fmt.Errorf("回归流程: 输入句中时刻: %w", err)
+	}
+	if err := pressMetaEnter(page); err != nil {
+		return fmt.Errorf("回归流程: 提交句中时刻: %w", err)
+	}
+	list, err := todos.List(context.Background(), store.TodoFilter{})
+	if err != nil {
+		return fmt.Errorf("回归流程: 读库: %w", err)
+	}
+	var saved *store.Todo
+	for i := range list {
+		if list[i].DueDate != nil && strings.Contains(list[i].Title, "晚自习") {
+			saved = &list[i]
+			break
+		}
+	}
+	if saved == nil {
+		return fmt.Errorf("回归流程: 句中时刻条目未创建（titles=%v）", todoTitles(list))
+	}
+	// 断言 1：时间词必须仍在标题里（丢字 bug 的回归护栏）。
+	for _, must := range []string{"明天", "6:20"} {
+		if !strings.Contains(saved.Title, must) {
+			return fmt.Errorf("回归流程: 标题丢失时间字符 %q，实际标题=%q", must, saved.Title)
+		}
+	}
+	// 断言 2：chip 仍识别出 06:20（按本机时区折算 UTC）。
+	loc := time.Local
+	tomorrow := time.Now().In(loc).AddDate(0, 0, 1)
+	expected := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 6, 20, 0, 0, loc).UTC().Format("2006-01-02T15:04:05.000Z")
+	if *saved.DueDate != expected {
+		return fmt.Errorf("回归流程: due_date 断言失败: 期望 %s 实际 %s", expected, *saved.DueDate)
+	}
+
+	// 2) 边界时刻丢字：时间短语后残悬字——「明天下午2点钟，需要去学校接他。」
+	//    保存后标题不得残留「钟，」（「钟」属时刻词）、不得出现前导标点。
+	clockInput := "明天下午2点钟，需要去学校接他。"
+	if _, err := callSetter(page, clockInput); err != nil {
+		return fmt.Errorf("回归流程: 输入边界时刻: %w", err)
+	}
+	if err := pressMetaEnter(page); err != nil {
+		return fmt.Errorf("回归流程: 提交边界时刻: %w", err)
+	}
+	clockList, err := todos.List(context.Background(), store.TodoFilter{})
+	if err != nil {
+		return fmt.Errorf("回归流程: 读库: %w", err)
+	}
+	var clockSaved *store.Todo
+	for i := range clockList {
+		if clockList[i].Title == "需要去学校接他。" {
+			clockSaved = &clockList[i]
+			break
+		}
+	}
+	if clockSaved == nil {
+		return fmt.Errorf("回归流程: 边界时刻条目标题不符（titles=%v）", todoTitles(clockList))
+	}
+	// chip 应识别出明天 14:00（下午2点，本机时区折算 UTC）。
+	clockExpected := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 14, 0, 0, 0, loc).UTC().Format("2006-01-02T15:04:05.000Z")
+	if clockSaved.DueDate == nil || *clockSaved.DueDate != clockExpected {
+		return fmt.Errorf("回归流程: 边界时刻 due_date 断言失败: 期望 %s 实际 %v", clockExpected, clockSaved.DueDate)
+	}
+
+	// 3) 中文数字时刻：「明天下午三点钟，需要带上俊羽去医院看感冒」→ 标题留纯任务名、
+	//    chip 识别「明天 下午三点 15:00」（第三轮：中文数字时刻识别）。
+	cnInput := "明天下午三点钟，需要带上俊羽去医院看感冒"
+	if _, err := callSetter(page, cnInput); err != nil {
+		return fmt.Errorf("回归流程: 输入中文数字时刻: %w", err)
+	}
+	if err := pressMetaEnter(page); err != nil {
+		return fmt.Errorf("回归流程: 提交中文数字时刻: %w", err)
+	}
+	cnList, err := todos.List(context.Background(), store.TodoFilter{})
+	if err != nil {
+		return fmt.Errorf("回归流程: 读库: %w", err)
+	}
+	var cnSaved *store.Todo
+	for i := range cnList {
+		if cnList[i].Title == "需要带上俊羽去医院看感冒" {
+			cnSaved = &cnList[i]
+			break
+		}
+	}
+	if cnSaved == nil {
+		return fmt.Errorf("回归流程: 中文数字时刻条目标题不符（titles=%v）", todoTitles(cnList))
+	}
+	cnExpected := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 15, 0, 0, 0, loc).UTC().Format("2006-01-02T15:04:05.000Z")
+	if cnSaved.DueDate == nil || *cnSaved.DueDate != cnExpected {
+		return fmt.Errorf("回归流程: 中文数字时刻 due_date 断言失败: 期望 %s 实际 %v", cnExpected, cnSaved.DueDate)
+	}
+
+	// 4) 已完成项不可再编辑 + 删除可用（2026-10-19 用户反馈，取代之前的「可编辑」）：
+	//    完成该条目，切「已完成」Tab，点击标题不得进入行内编辑；删除仍可用。
+	if _, err := page.Eval(fmt.Sprintf(`(() => {
+		const btn = document.querySelector('button[aria-label="完成 %s"]');
+		if (!btn) throw new Error('complete button not found');
+		btn.click();
+		return true;
+	})()`, saved.Title)); err != nil {
+		return fmt.Errorf("回归流程: 点击完成: %w", err)
+	}
+	if _, err := page.Eval(`(() => {
+		const tab = [...document.querySelectorAll('button')].find((item) => item.textContent?.trim().startsWith('已完成'));
+		if (!tab) throw new Error('done tab not found');
+		tab.click();
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("回归流程: 切已完成 Tab: %w", err)
+	}
+	if err := waitFor(page, fmt.Sprintf(`[...document.querySelectorAll('.todo-item.is-done .todo-text')].some((item) => item.textContent?.includes(%q))`, "晚自习"), 8*time.Second); err != nil {
+		return fmt.Errorf("回归流程: 已完成列表未出现目标条目: %w", err)
+	}
+	// 点击标题：已完成项必须不进入行内编辑（不可再编辑）。
+	if _, err := page.Eval(fmt.Sprintf(`(() => {
+		const cell = [...document.querySelectorAll('.todo-item.is-done .todo-text')].find((item) => item.textContent?.includes(%q));
+		if (!cell) throw new Error('done row text not found');
+		cell.click();
+		return true;
+	})()`, "晚自习")); err != nil {
+		return fmt.Errorf("回归流程: 点击已完成标题: %w", err)
+	}
+	time.Sleep(1500 * time.Millisecond) // 给误入编辑态留出反应时间
+	if _, err := page.Eval(`(() => {
+		if (document.querySelector('.todo-item.is-editing .todo-edit-input') !== null) {
+			throw new Error('done item entered editing mode');
+		}
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("回归流程: 已完成项不应可编辑: %w", err)
+	}
+
+	// 删除仍可用：点击删除 → 确认弹窗 → 条目从库中消失。
+	if _, err := page.Eval(fmt.Sprintf(`(() => {
+		const btn = document.querySelector('button[aria-label="删除 %s"]');
+		if (!btn) throw new Error('done row delete button not found');
+		btn.click();
+		return true;
+	})()`, saved.Title)); err != nil {
+		return fmt.Errorf("回归流程: 点击已完成删除: %w", err)
+	}
+	if err := waitFor(page, `document.querySelector('[role="dialog"]')?.textContent?.includes('确定删除') === true`, 5*time.Second); err != nil {
+		return fmt.Errorf("回归流程: 已完成删除确认弹窗未出现: %w", err)
+	}
+	if _, err := page.Eval(`(() => {
+		const btn = [...document.querySelectorAll('[role="dialog"] button')].find((item) => item.textContent?.trim() === '删除');
+		if (!btn) throw new Error('confirm delete button not found');
+		btn.click();
+		return true;
+	})()`); err != nil {
+		return fmt.Errorf("回归流程: 确认删除已完成项: %w", err)
+	}
+	// 断言 3：删除后条目从库中消失。
+	final, err := todos.List(context.Background(), store.TodoFilter{})
+	if err != nil {
+		return fmt.Errorf("回归流程: 读回列表: %w", err)
+	}
+	for i := range final {
+		if final[i].ID == saved.ID {
+			return fmt.Errorf("回归流程: 已完成项删除后仍存在（id=%d）", saved.ID)
+		}
 	}
 	return nil
 }

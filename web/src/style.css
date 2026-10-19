@@ -774,6 +774,7 @@ input {
 .todo-item.is-done .todo-text {
   color: var(--text-3);
   text-decoration: line-through;
+  cursor: default; /* 已完成项不可再编辑：标题不响应点击，不显示手型光标 */
 }
 
 .todo-item .btn-icon {
