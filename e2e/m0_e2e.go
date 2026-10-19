@@ -1078,6 +1078,8 @@ func runTodoV2Flow(page *mygo.Page, url string, todos *service.TodoService, proj
 // runTodoParseRegressionFlow 覆盖两项用户反馈修复（复测回归）：
 //   - 需求 1：句中时间不再丢字——「明天下午，去学校，从6:20开始参加班级的晚自习」
 //     保存后标题必须保留「明天」「6:20」原文（不再出现「下午，…从开始」空洞）；
+//     另覆盖「明天下午2点钟，需要去学校接他。」——时刻词含「钟」时不残留悬字、
+//     不出现前导标点（第二轮丢字修复）；
 //   - 需求 2：已完成项可编辑——在「已完成」Tab 点击标题进入行内编辑、保存后
 //     标题更新且仍留在已完成列表（done/completed_at 不被清空）。
 func runTodoParseRegressionFlow(page *mygo.Page, url string, todos *service.TodoService) error {
@@ -1125,7 +1127,36 @@ func runTodoParseRegressionFlow(page *mygo.Page, url string, todos *service.Todo
 		return fmt.Errorf("回归流程: due_date 断言失败: 期望 %s 实际 %s", expected, *saved.DueDate)
 	}
 
-	// 2) 已完成项可编辑：先完成该条目，再切「已完成」Tab 行内编辑。
+	// 2) 边界时刻丢字：时间短语后残悬字——「明天下午2点钟，需要去学校接他。」
+	//    保存后标题不得残留「钟，」（「钟」属时刻词）、不得出现前导标点。
+	clockInput := "明天下午2点钟，需要去学校接他。"
+	if _, err := callSetter(page, clockInput); err != nil {
+		return fmt.Errorf("回归流程: 输入边界时刻: %w", err)
+	}
+	if err := pressMetaEnter(page); err != nil {
+		return fmt.Errorf("回归流程: 提交边界时刻: %w", err)
+	}
+	clockList, err := todos.List(context.Background(), store.TodoFilter{})
+	if err != nil {
+		return fmt.Errorf("回归流程: 读库: %w", err)
+	}
+	var clockSaved *store.Todo
+	for i := range clockList {
+		if clockList[i].Title == "需要去学校接他。" {
+			clockSaved = &clockList[i]
+			break
+		}
+	}
+	if clockSaved == nil {
+		return fmt.Errorf("回归流程: 边界时刻条目标题不符（titles=%v）", todoTitles(clockList))
+	}
+	// chip 应识别出明天 14:00（下午2点，本机时区折算 UTC）。
+	clockExpected := time.Date(tomorrow.Year(), tomorrow.Month(), tomorrow.Day(), 14, 0, 0, 0, loc).UTC().Format("2006-01-02T15:04:05.000Z")
+	if clockSaved.DueDate == nil || *clockSaved.DueDate != clockExpected {
+		return fmt.Errorf("回归流程: 边界时刻 due_date 断言失败: 期望 %s 实际 %v", clockExpected, clockSaved.DueDate)
+	}
+
+	// 3) 已完成项可编辑：先完成该条目，再切「已完成」Tab 行内编辑。
 	if _, err := page.Eval(fmt.Sprintf(`(() => {
 		const btn = document.querySelector('button[aria-label="完成 %s"]');
 		if (!btn) throw new Error('complete button not found');

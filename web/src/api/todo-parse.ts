@@ -64,14 +64,15 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
       weekdayText = dayMatch[0];
     }
   }
-  // 日期词剥离策略（丢字 bug 的根源在此，两轮修复收敛）:
+  // 日期词剥离策略（丢字 bug 的根源在此，三轮修复收敛）:
   //   a. 字段值里的日期（如「【活动日期】10月17日（本周六）」）是正文内容，不剥
-  //      （否则残留空洞）；裸用法（「明天交报告」）仍剥。
-  //   b. 句中日期词（后面还有正文，如「明天下午，去学校…」）也视为正文保留——
-  //      单剥日期词会把句子打断成「下午，去学校…」这种悬空短语；日期信息
-  //      已由 chip（「明天 06:20」）完整表达。仅当日期词后紧跟时刻短语
-  //      （「明天 15:00 测试解析」「明天6:20交」）或位于句尾/行尾时才剥，
-  //      此时它是「安排前缀」而非叙述正文。
+  //      （否则残留空洞）。
+  //   b. 句中日期词（后面还有正文且非时刻短语，如「明天下午，去学校…」）也视为
+  //      正文保留——单剥日期词会把句子打断成「下午，去学校…」这种悬空短语。
+  //   c. 仅当日期词是「安排前缀」才剥：其后紧邻时刻短语（「明天 15:00 测试解析」
+  //      「明天下午2点钟，…」）或后接标点/句尾（「明天，去学校」「明天交报告」）；
+  //      剥离时随带消费其后的一个标点，避免残留「，去学校」这种前导标点。
+  const PUNCT = '，,。！？；;、!?';
   if (weekdayText) {
     const dayAt = text.indexOf(weekdayText);
     const beforeDay = text.slice(0, dayAt);
@@ -82,11 +83,13 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
     const atTail = /^\s*$/.test(afterDay) || /^[，,。！？；;、!?\s]/.test(afterDay);
     const inFieldValue = /[：:】]\s*$/.test(beforeDay);
     if (!inFieldValue && (followedByTime || atTail)) {
-      text = text.replace(weekdayText, ' ');
+      let stripEnd = dayAt + weekdayText.length;
+      if (PUNCT.includes(text[stripEnd] ?? '')) stripEnd += 1; // 随带消费一个标点
+      text = text.slice(0, dayAt) + ' ' + text.slice(stripEnd);
     }
   }
 
-  // 2) 时刻：HH:mm / HH点(半)? / 上午|下午|晚上 N点(半)?。
+  // 2) 时刻：HH:mm / HH点(半)(钟)? / 上午|下午|晚上 N点(半)(钟)?。
   //    bug #13：不再要求数字前有空白（「下午6点」紧邻也能命中），
   //    并支持上午/下午/晚上的 12 小时制换算（下午6点 → 18:00）。
   //    bug #16（复测反馈）：日期词与句中时刻都被剥掉时标题会出现语义空洞
@@ -128,7 +131,8 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
 
   // 2b) 普通时刻（无标签命中时才看，避免「签到时间：13:30」这类其它字段被误当安排）。
   if (!timeConsumed) {
-    const timeRe = /(上午|早上|凌晨|中午|下午|晚上)?\s*(?:(\d{1,2}):(\d{1,2})|(\d{1,2})点(半)?)/;
+    // 「钟」是时刻词的一部分（「2点钟」）：不匹配会残留悬空「钟」（丢字 bug 第二轮）。
+    const timeRe = /(上午|早上|凌晨|中午|下午|晚上)?\s*(?:(\d{1,2}):(\d{1,2})|(\d{1,2})点(半)?(钟)?)/;
     const timeMatch = text.match(timeRe);
     if (timeMatch) {
       timeMatchMeridiem = timeMatch[1] ?? '';
@@ -147,7 +151,8 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
         timeConsumed = timeMatch[0];
         // 句中时刻只建 chip 不剥正文：命中位置两侧都是正文文字（如「从6:20开始」的
         // 「从」「开始」）时，剥离会把句子打断成空洞；句首/句尾/紧跟日期词或标点的
-        // 时刻短语（「下午6点」「明天6:20」）是安排意图，仍剥离。
+        // 时刻短语（「下午6点」「明天6:20」）是安排意图，仍剥离；剥离时随带消费
+        // 其后的一个标点，避免残留「，开会」这种前导标点。
         const at = text.indexOf(timeMatch[0]);
         const before = text.slice(0, at);
         const after = text.slice(at + timeMatch[0].length);
@@ -155,7 +160,11 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
           /^\s*$/.test(before) ||
           /^\s*$/.test(after) ||
           /(?:明天|今天|后天|大后天|下周|本周|[，,。！？；;、!?]|\s)\s*$/.test(before);
-        if (atBoundary) text = text.replace(timeMatch[0], ' ');
+        if (atBoundary) {
+          let stripEnd = at + timeMatch[0].length;
+          if (PUNCT.includes(text[stripEnd] ?? '')) stripEnd += 1; // 随带消费一个标点
+          text = text.slice(0, at) + ' ' + text.slice(stripEnd);
+        }
       }
     }
   }
@@ -163,19 +172,20 @@ export function extractDue(raw: string): { title: string; due: ParsedDue | null 
   if (dayBase) {
     const dLabel = dayLabel(dayBase);
     return {
-      title: normalizeSpaces(text),
+      // 剥离后标题为空（如只输入「明天下午2点。」）→ 回退原文，不丢内容也不误报「内容为空」。
+      title: normalizeSpaces(text) || normalizeSpaces(raw),
       due: { at: withTime(dayBase, hh, mm), label: timeLabel ? `${dLabel} ${timeLabel}` : dLabel },
     };
   }
   if (timeConsumed && timeLabel) {
     // 标签时间「(开始)时间：HH:mm」是用户明确意图 → 无日期词时默认今天。
     if (labelHit) {
-      return { title: normalizeSpaces(text), due: { at: withTime(today(), hh, mm), label: `今天 ${timeLabel}` } };
+      return { title: normalizeSpaces(text) || normalizeSpaces(raw), due: { at: withTime(today(), hh, mm), label: `今天 ${timeLabel}` } };
     }
     // bug #5 加固：无日期词时，仅「上午/下午/晚上 N点」这类明确时间短语才默认今天；
     // 孤立的「18:00」「6点」（如标题里的「# 开始时间：18:00」）不再被误当作安排。
     if (timeMatchMeridiem) {
-      return { title: normalizeSpaces(text), due: { at: withTime(today(), hh, mm), label: `今天 ${timeLabel}` } };
+      return { title: normalizeSpaces(text) || normalizeSpaces(raw), due: { at: withTime(today(), hh, mm), label: `今天 ${timeLabel}` } };
     }
     // 裸 HH:mm / N点 → 不安排，把已剥离的时刻还原（避免丢字）。
     return { title: normalizeSpaces(raw), due: null };
